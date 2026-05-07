@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>KNOWN — Podcast Intelligence Platform</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, serif; background: #F7F4EF; color: #0F0E0C; }
+  button { font-family: Georgia, serif; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #EEE9E1; }
+  ::-webkit-scrollbar-thumb { background: #CCC7BE; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const C = {
+  ink: "#0F0E0C", ink2: "#3D3A35", ink3: "#7A756D",
+  cream: "#F7F4EF", cream2: "#EEE9E1", border: "#DDD8CF",
+  accent: "#C8522A", accentL: "#F5EAE4",
+  green: "#2E6B4F", greenL: "#E4F0EA",
+  gold: "#A07830", goldL: "#F4EDD8",
+  blue: "#2A5078", blueL: "#E0EBF4",
+  purple: "#5C3D8C", purpleL: "#EDE8F5",
+  white: "#FFFFFF",
+};
+const HEAD_C = "#2A5078", HEART_C = "#C8522A", BODY_C = "#2E6B4F";
+const HEAD_L = "#E0EBF4", HEART_L = "#F5EAE4", BODY_L = "#E4F0EA";
+
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+const getIC = t => t==="head"?HEAD_C:t==="heart"?HEART_C:BODY_C;
+const getIL = t => t==="head"?HEAD_L:t==="heart"?HEART_L:BODY_L;
+
+function IB({ type }) {
+  return <span style={{ background: getIL(type), color: getIC(type), fontFamily:"monospace",
+    fontSize:8, fontWeight:700, letterSpacing:"0.1em", padding:"3px 8px", borderRadius:3 }}>
+    {type.toUpperCase()}
+  </span>;
+}
+function Tag({ children, color=C.ink3, bg=C.cream2 }) {
+  return <span style={{ background:bg, color, fontSize:8, fontFamily:"monospace",
+    fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", padding:"3px 8px", borderRadius:2 }}>
+    {children}
+  </span>;
+}
+function Card({ children, style={} }) {
+  return <div style={{ background:C.white, border:`0.5px solid ${C.border}`, borderRadius:8, padding:18, ...style }}>{children}</div>;
+}
+function SL({ children, color=C.ink3 }) {
+  return <div style={{ fontFamily:"monospace", fontSize:9, color, letterSpacing:"0.13em",
+    textTransform:"uppercase", marginBottom:8 }}>{children}</div>;
+}
+function Hr({ my=14 }) { return <div style={{ borderTop:`0.5px solid ${C.border}`, margin:`${my}px 0` }} />; }
+function Dot({ color=C.accent }) {
+  return <div style={{ width:4, height:4, borderRadius:"50%", background:color, marginTop:7, flexShrink:0 }} />;
+}
+function ScoreCircle({ score, color, size=56 }) {
+  const r=size/2-5, circ=2*Math.PI*r, dash=(score/100)*circ;
+  return <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
+    <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth={4}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={4}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"/>
+    </svg>
+    <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <span style={{ fontSize:size>50?13:11, fontWeight:700, color }}>{score}</span>
+    </div>
+  </div>;
+}
+function IntelBar({ dominant, secondary, tertiary, dp, sp, tp }) {
+  return <div style={{ marginBottom:12 }}>
+    <div style={{ display:"flex", height:7, borderRadius:4, overflow:"hidden", gap:2 }}>
+      {[[dominant,dp],[secondary,sp],[tertiary,tp]].map(([t,p],i)=>
+        <div key={i} style={{ width:`${p}%`, background:getIC(t), borderRadius:2 }}/>)}
+    </div>
+    <div style={{ display:"flex", gap:12, marginTop:5 }}>
+      {[[dominant,dp],[secondary,sp],[tertiary,tp]].map(([t,p],i)=>
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:4 }}>
+          <div style={{ width:7, height:7, borderRadius:"50%", background:getIC(t) }}/>
+          <span style={{ fontSize:9, color:C.ink3, fontFamily:"monospace" }}>{t.toUpperCase()} {p}%</span>
+        </div>)}
+    </div>
+  </div>;
+}
+
+// ─── HOST CARD ────────────────────────────────────────────────────────────────
+function HostCard({ host }) {
+  const [tab, setTab] = React.useState("profile");
+  return <Card style={{ flex:1 }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+      <div>
+        <div style={{ fontWeight:700, fontSize:14, color:C.ink, marginBottom:2 }}>{host.name}</div>
+        <div style={{ fontSize:9, color:C.ink3, fontFamily:"monospace" }}>{host.role}</div>
+      </div>
+      <IB type={host.dominant}/>
+    </div>
+    <SL>Intelligence Profile</SL>
+    <IntelBar dominant={host.dominant} secondary={host.secondary} tertiary={host.tertiary}
+      dp={host.dp} sp={host.sp} tp={host.tp}/>
+    <div style={{ display:"flex", borderBottom:`0.5px solid ${C.border}`, marginBottom:12 }}>
+      {["profile","clips"].map(t=>(
+        <button key={t} onClick={()=>setTab(t)} style={{
+          background:"none", border:"none", padding:"5px 12px", cursor:"pointer",
+          fontFamily:"monospace", fontSize:9, letterSpacing:"0.1em", textTransform:"uppercase",
+          color:tab===t?C.accent:C.ink3,
+          borderBottom:tab===t?`2px solid ${C.accent}`:"2px solid transparent", marginBottom:-1
+        }}>{t}</button>
+      ))}
+    </div>
+    {tab==="profile" && <div>
+      {[
+        { label:"Dominant", type:host.dominant, desc:host.dominantDesc },
+        { label:"Secondary", type:host.secondary, desc:host.secondaryDesc },
+        { label:"Tertiary — Growth Edge", type:host.tertiary, desc:host.tertiaryDesc },
+      ].map((item,i)=>(
+        <div key={i} style={{
+          borderLeft:`2px solid ${getIC(item.type)}`, marginBottom:10,
+          ...(i===2
+            ? { background:C.cream2, borderRadius:"0 4px 4px 0", padding:"8px 10px" }
+            : { paddingLeft:10 })
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+            <span style={{ fontSize:9, fontFamily:"monospace", color:getIC(item.type), fontWeight:700 }}>
+              {item.label.toUpperCase()}
+            </span>
+            <IB type={item.type}/>
+          </div>
+          <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{item.desc}</p>
+        </div>
+      ))}
+      <Hr/>
+      <SL>Transcript Signals</SL>
+      {host.signals.map((s,i)=>(
+        <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:6 }}>
+          <Dot/><p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0 }}>{s}</p>
+        </div>
+      ))}
+    </div>}
+    {tab==="clips" && <div>
+      {host.clips.length===0
+        ? <p style={{ fontSize:11, color:C.ink3, fontStyle:"italic" }}>Clip analysis requires additional episode transcripts.</p>
+        : host.clips.map((c,i)=>(
+          <div key={i} style={{ border:`0.5px solid ${C.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
+            <Tag color={C.blue} bg={C.blueL}>{c.type}</Tag>
+            <div style={{ fontWeight:600, fontSize:12, color:C.ink, margin:"6px 0 4px" }}>{c.label}</div>
+            <p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0 }}>{c.note}</p>
+          </div>
+        ))
+      }
+    </div>}
+  </Card>;
+}
+
+// ─── MARKETING INTELLIGENCE (DEEP) ───────────────────────────────────────────
+function MarketingIntel() {
+  const platforms = [
+    {
+      platform: "TikTok / Instagram Reels",
+      color: C.accent, bg: C.accentL,
+      strategy: "Lead with tertiary Body activation — not the guest name.",
+      clips: [
+        { label: "Nicole's falafel IDTSH", timing: "Min 79–81", why: "60 seconds. Zero context required. Self-contained, escalating, ends on a quotable line. Nicole Kidman saying 'no more falafel before you make love' stops every scroll. This is the highest-velocity clip in the episode and it currently doesn't exist in their marketing." },
+        { label: "'I am in a state of yearning right now'", timing: "Min 17", why: "4-second hook, then cut to both hosts reacting. This is the clip that defines what kind of show this is — a place where Nicole Kidman says things she doesn't say in press junkets. Lead with the quote as text on screen, then play the audio." },
+        { label: "Bowen's outdoor furniture IDTSH", timing: "Min 75–77", why: "Body activation from the more analytical host. Surprising because it's Bowen. The contrast with his usual register is what makes it shareable — audiences who know him feel rewarded." },
+      ],
+      avoid: "Do not lead with 'Nicole Kidman on Culturistas.' Guest name-first is the lowest-performing clip strategy for this show. The guest is not the differentiator — the format is."
+    },
+    {
+      platform: "YouTube Shorts",
+      color: C.blue, bg: C.blueL,
+      strategy: "Lead with host vulnerability as the hook — not guest name, not topic.",
+      clips: [
+        { label: "Matt's Batman Forever disclosure", timing: "Min 22", why: "Matt saying 'I found out something about myself seeing that picture of you on the VHS cover' is a queer awakening disclosure from a podcast host — not a guest. This has never been clipped. It is the show's most powerful acquisition hook for the LGBTQ+ audience it hasn't reached yet." },
+        { label: "Nicole on her mother's cancer", timing: "Min 11–12", why: "Nicole Kidman opening up about nursing her mother — unprompted, within 15 minutes, in a way she does not do on press tours. This clip does not exist in the show's marketing. It is the single strongest argument for why new listeners should subscribe." },
+      ],
+      avoid: "Do not clip cultural analysis segments for YouTube Shorts — they require episode context to land. The show's Head intelligence (cultural frameworks, reference-heavy takes) performs for existing listeners, not for acquisition."
+    },
+    {
+      platform: "Podcast Promo / Audio",
+      color: C.green, bg: C.greenL,
+      strategy: "Use the episode title as the hook — then pair it with a guest quote that fulfills the promise of that title.",
+      clips: [
+        { label: "'Shivery Delicious' + yearning sequence", timing: "Min 17–18", why: "The episode title is coined by Nicole in real time and the hosts immediately recognize it. This 30-second exchange is a perfect podcast promo — it names the feeling the episode creates before explaining what the episode is about. Currently unused." },
+        { label: "Matt's intro disclosure before the guest arrives", timing: "Min 1–4", why: "Matt's personal cultural history — how Moulin Rouge was formative for him — delivered before Nicole joins. This is the hosts going first emotionally. Clip this as the proof that the hosts do the work before the guest arrives." },
+      ],
+      avoid: "Do not use episode recaps or topic lists as promo. 'Matt and Bowen discuss Nicole Kidman's career' is not a hook. The feeling is the hook."
+    },
+    {
+      platform: "Long-Form YouTube",
+      color: C.purple, bg: C.purpleL,
+      strategy: "Clip the relationship between the hosts, not just the guest moments. The hosts' chemistry is the reason people subscribe.",
+      clips: [
+        { label: "Matt and Bowen reacting to each other during IDTSH", timing: "Min 70–82", why: "The full IDTSH sequence — all three rants plus the group song close — shows the show's actual format in action. No existing long-form clip demonstrates what IDTSH is as a recurring segment. This is the one that converts viewers into subscribers." },
+        { label: "The yearning conversation + Shivery Delicious coinage", timing: "Min 16–18", why: "This 2-minute sequence moves from an unexpected philosophical discussion into a spontaneous naming moment. It shows what the show is when it's at its best — unscripted, specific, and emotionally specific. New viewers need to see this before they'll commit to an episode." },
+      ],
+      avoid: "Do not post full episodes without a clip-first strategy. The episode is 85 minutes — viewers need 90 seconds of proof first."
+    },
+  ];
+
+  const positioning = [
+    { current: "Pop culture podcast with [guest name]", problem: "Guest-led. Interchangeable with every other pop culture show. Does not name the format or what makes it different.", fix: "The podcast that makes icons say things they don't say anywhere else." },
+    { current: "Las Culturistas / Culturistas [episode number]", problem: "The episode title 'Shivery Delicious' is the best marketing asset in this episode and it's being used as an afterthought, not a headline.", fix: "Lead every piece of marketing with the episode title. 'Shivery Delicious with Nicole Kidman.' The title is the emotional promise." },
+    { current: "Matt Rogers and Bowen Yang", problem: "Host names are the entire brand description. There is no positioning language that tells new listeners what the show feels like.", fix: "10 years of queer pop culture. We did the homework so the conversation can go somewhere else." },
+  ];
+
+  return <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+    <Card style={{ borderLeft:`3px solid ${C.accent}`, background:C.accentL }}>
+      <SL color={C.accent}>The Core Problem</SL>
+      <p style={{ fontSize:13, color:C.ink, lineHeight:1.7, margin:0, fontWeight:500 }}>
+        Culturistas is currently marketing the guest. The show's actual differentiator is the format — specifically, the permission structure that makes guests say things they don't say elsewhere. No clip in their current marketing demonstrates this. Every platform strategy below is built around showing the format first, the guest second.
+      </p>
+    </Card>
+
+    <div style={{ fontWeight:700, fontSize:14, color:C.ink, marginBottom:-4 }}>Platform-Specific Clip Strategy</div>
+    {platforms.map((pl,i)=>(
+      <Card key={i}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+          <Tag color={pl.color} bg={pl.bg}>{pl.platform}</Tag>
+        </div>
+        <div style={{ background:pl.bg, borderLeft:`2px solid ${pl.color}`, padding:"8px 12px", borderRadius:"0 4px 4px 0", marginBottom:12 }}>
+          <p style={{ fontSize:12, color:C.ink, margin:0, fontWeight:500 }}>{pl.strategy}</p>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+          {pl.clips.map((c,j)=>(
+            <div key={j} style={{ border:`0.5px solid ${C.border}`, borderRadius:6, padding:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                <span style={{ fontWeight:700, fontSize:12, color:C.ink }}>{c.label}</span>
+                <Tag>{c.timing}</Tag>
+              </div>
+              <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{c.why}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:C.cream2, borderRadius:4, padding:"8px 12px" }}>
+          <span style={{ fontSize:9, fontFamily:"monospace", color:C.ink3, fontWeight:700, letterSpacing:"0.08em" }}>AVOID — </span>
+          <span style={{ fontSize:11, color:C.ink2 }}>{pl.avoid}</span>
+        </div>
+      </Card>
+    ))}
+
+    <div style={{ fontWeight:700, fontSize:14, color:C.ink, marginBottom:-4 }}>Positioning Language</div>
+    {positioning.map((p,i)=>(
+      <Card key={i}>
+        <div style={{ display:"flex", gap:14 }}>
+          <div style={{ flex:1, borderRight:`0.5px solid ${C.border}`, paddingRight:14 }}>
+            <SL color={C.accent}>Current</SL>
+            <p style={{ fontSize:12, color:C.ink, margin:"0 0 6px", fontWeight:600 }}>{p.current}</p>
+            <p style={{ fontSize:11, color:C.ink3, lineHeight:1.55, margin:0, fontStyle:"italic" }}>{p.problem}</p>
+          </div>
+          <div style={{ flex:1, paddingLeft:0 }}>
+            <SL color={C.green}>Recommended</SL>
+            <p style={{ fontSize:12, color:C.ink, margin:0, fontWeight:600, lineHeight:1.6 }}>{p.fix}</p>
+          </div>
+        </div>
+      </Card>
+    ))}
+  </div>;
+}
+
+// ─── CREATIVE DEVELOPMENT ─────────────────────────────────────────────────────
+function CreativeDev() {
+  const issues = [
+    {
+      title: "The IDTSH Segment Is in the Wrong Place",
+      severity: "high", color: C.accent, bg: C.accentL,
+      current: "Currently placed at minute 70–90. It functions as a dessert — a reward for listeners who stayed for the whole episode.",
+      problem: "The IDTSH segment activates Body/gut intelligence — the tertiary dimension for both hosts. Moving it to the end means the most dimensionally surprising content in the episode comes after most potential new listeners have already dropped off. And because it comes at the end, it can't elevate the content that follows it.",
+      fix: "Move IDTSH to minute 25–35. After the guest relationship is established but before the deep dive. At that position, the Body activation resets the episode's energy and RAISES the ceiling on the Heart/Head exchange that follows. Right now the show uses it as a close — it should be a structural pivot.",
+      bonus: "Also: establish a consistent order. Guest does IDTSH first, then both hosts respond. This creates the contrast moment — guest's instinct vs. hosts' instinct — that doesn't currently exist."
+    },
+    {
+      title: "Matt and Bowen Never Disagree",
+      severity: "medium", color: C.gold, bg: C.goldL,
+      current: "In 85 minutes of this episode, there is zero on-screen disagreement between the hosts. They defer to each other gracefully throughout.",
+      problem: "This is the show's creative ceiling. Both hosts are Heart + Head — they are both inclined toward harmony and away from conflict. The result is a show that is emotionally warm and intellectually rich but structurally safe. The hosts' relationship never creates tension — which means the episode's energy depends entirely on the guest.",
+      fix: "Design one segment per episode where the hosts take opposing positions. Not manufactured conflict — structured disagreement. Give it a name. 'Bowen vs. Matt on [topic].' This activates Bowen's Head in challenge mode and Matt's Heart under pressure — the two most interesting versions of each host. It also gives the show a second clippable format asset alongside IDTSH.",
+      bonus: null
+    },
+    {
+      title: "Nicole's Mother Story Was Not Followed",
+      severity: "high", color: C.accent, bg: C.accentL,
+      current: "At minute 11–12, Nicole discloses nursing her mother through cancer. Matt responds with 'Sorry to get serious' and immediately pivots away.",
+      problem: "This is the show pulling back from its deepest possible moment. Nicole's Heart dimension was fully open — she was in the most vulnerable register she entered in the entire episode. The pivot to comfort was a missed opportunity that the transcript makes visible because Nicole does not return to this depth again.",
+      fix: "Train both hosts to recognize when a guest's Heart intelligence has opened fully and to honor it rather than redirect away from it. The host's instinct to relieve discomfort (also a Heart response) is working against the show's strongest content. The rule: when a guest goes deeper than expected, go with them for at least 60 more seconds before moving on.",
+      bonus: "This is coachable. It's not a flaw in the hosts — it's a habit. The system can flag these moments in the transcript so the production team can review them in pre-show prep."
+    },
+    {
+      title: "The Tri-Intelligence Balance Is Off for This Length",
+      severity: "medium", color: C.gold, bg: C.goldL,
+      current: "Full episode breakdown: Heart ~65% · Head ~28% · Body ~7%",
+      problem: "For an 85-minute episode, Body activation at 7% means the show has one gear change in the entire runtime. IDTSH carries all of it. The result is an episode that is emotionally consistent but dimensionally flat across the middle — which is where listener dropout is highest.",
+      fix: "Target: Heart 55% · Head 30% · Body 15%. Add 2–3 additional Body activation moments built into structure — not just IDTSH. Candidates: a rapid-fire association round, a 'first instinct' segment where analysis is not allowed, a physical or sensory question sequence. Each of these can be named, branded, and clipped.",
+      bonus: null
+    },
+  ];
+
+  return <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+    <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}` }}>
+      <SL color="rgba(255,255,255,0.4)">What This Analysis Is</SL>
+      <p style={{ fontSize:12, color:"rgba(255,255,255,0.82)", lineHeight:1.7, margin:0 }}>
+        This is not a critique of the show — Culturistas is performing well and its core identity is healthy. This is a precision analysis of where the show is leaving dimension on the table. Every recommendation below is grounded in specific transcript moments, not editorial opinion. The goal is not to change the show — it is to help the show become more fully what it already is.
+      </p>
+    </Card>
+    {issues.map((item,i)=>(
+      <Card key={i} style={{ borderTop:`3px solid ${item.color}` }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+          <div style={{ fontWeight:700, fontSize:14, color:C.ink }}>{item.title}</div>
+          <Tag color={item.color} bg={item.bg}>{item.severity === "high" ? "High Priority" : "Medium Priority"}</Tag>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <div>
+            <SL>Current State</SL>
+            <p style={{ fontSize:12, color:C.ink2, lineHeight:1.6, margin:0 }}>{item.current}</p>
+          </div>
+          <div style={{ background:C.cream2, borderRadius:4, padding:"10px 12px" }}>
+            <SL>Why This Matters</SL>
+            <p style={{ fontSize:12, color:C.ink, lineHeight:1.6, margin:0 }}>{item.problem}</p>
+          </div>
+          <div style={{ borderLeft:`2px solid ${C.green}`, paddingLeft:12 }}>
+            <SL color={C.green}>Recommendation</SL>
+            <p style={{ fontSize:12, color:C.ink, lineHeight:1.6, margin:0 }}>{item.fix}</p>
+          </div>
+          {item.bonus && (
+            <div style={{ borderLeft:`2px solid ${C.blue}`, paddingLeft:12, background:C.blueL, borderRadius:"0 4px 4px 0", padding:"8px 12px" }}>
+              <SL color={C.blue}>Additional Note</SL>
+              <p style={{ fontSize:11, color:C.ink, lineHeight:1.55, margin:0 }}>{item.bonus}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+    ))}
+  </div>;
+}
+
+// ─── SHOW TEMPLATE ────────────────────────────────────────────────────────────
+function ShowTemplate() {
+  const principles = [
+    {
+      num: "01", title: "The Chemistry Principle",
+      color: HEART_C, bg: HEART_L,
+      rule: "Pair hosts with different dominant intelligences. Never pair the same dominant unless the format explicitly creates contrast between them.",
+      culturistas: "Matt (Heart) + Bowen (Head). Their dominant intelligences are different enough to create genuine exchange and similar enough in tertiary (both Body-weak) to share a consistent blind spot the format must address.",
+      apply: "When developing a new show, map host intelligence types before anything else. The pairing decision is the most consequential creative decision you will make. A Heart + Head pairing creates warmth with structure. A Body + Head pairing (like Health Stuff) creates energy with analysis. A Body + Heart pairing creates instinct with emotion. Each combination produces different chemistry and requires different format solutions.",
+      warning: "Two hosts with the same dominant intelligence will always default to agreement. The show will be consistent but it will not generate tension. You will need to manufacture conflict structurally or the episodes will feel flat."
+    },
+    {
+      num: "02", title: "The Permission Structure Principle",
+      color: HEART_C, bg: HEART_L,
+      rule: "The host must go first emotionally. If the host only asks questions, the guest only gives answers.",
+      culturistas: "Matt's Batman Forever disclosure, his yearning confession, his Antarctica story — all of these come BEFORE he asks Nicole anything personal. He goes first every time. Nicole's vulnerability with her mother's cancer story is a direct result of Matt having already opened his own emotional register.",
+      apply: "In any host-driven show, build pre-guest segments where the hosts disclose something personal about their relationship to the episode's topic. This is not small talk — it is the structural foundation that makes guest depth possible. If the hosts are emotionally closed when the guest arrives, the guest will stay emotionally closed.",
+      warning: "Hosts who lead only with questions are creating interview shows, not conversation shows. The distinction matters for audience loyalty. Interviews have guests. Conversations have participants."
+    },
+    {
+      num: "03", title: "The Tertiary Activation Principle",
+      color: BODY_C, bg: BODY_L,
+      rule: "Every show needs a built-in segment that forces hosts out of their dominant intelligence. Name it. Brand it. Put it in the same place every episode.",
+      culturistas: "IDTSH — 'I Don't Think So, Honey.' A timed, opinionated rant that forces Body/gut activation on Heart + Head hosts who never go there naturally. Nicole Kidman ranting about bad breath is the most clippable 90 seconds in the episode. It works because it activates the dimension both hosts (and the guest) never use.",
+      apply: "Identify the tertiary intelligence of your hosts. Design a segment that forces them into it. Give it a name that can be used in marketing and clip titles. Hot Ones is this principle at its most developed — the hot sauce forces a physical/instinctive response from guests who came prepared to be intellectual and articulate. Every show needs its Hot Ones equivalent.",
+      warning: "This segment will always be your most clippable content. It should not be at the end of the episode. Place it at 25–40% of the runtime so it can raise the ceiling on what follows, not reward listeners who stayed until the end."
+    },
+    {
+      num: "04", title: "The Episode Architecture Principle",
+      color: HEAD_C, bg: HEAD_L,
+      rule: "Structure the episode around intelligence activation, not topics. The conversation's subject matter matters less than the emotional and cognitive register it activates.",
+      culturistas: "Current architecture: Heart opens (min 0–10), Heart/Head builds (min 10–60), Body activates late (min 70–90). This produces an episode that peaks emotionally in the middle and re-energizes only at the end. The IDTSH placement is the only structural problem in an otherwise well-built show.",
+      apply: "Target architecture for a 60-minute show: Dominant opens and establishes tone (0–10 min). Secondary begins to emerge through guest relationship (10–25 min). Tertiary activation segment resets energy and surprises audience (25–35 min). Dominant + Secondary at full depth, elevated by the tertiary reset (35–55 min). Close that honors the emotional register opened earlier (55–60 min).",
+      warning: "Most shows front-load their best content or back-load their most surprising content. Both are mistakes. The tertiary activation belongs in the middle — it is the pivot that separates the set-up from the payoff."
+    },
+    {
+      num: "05", title: "The Naming Principle",
+      color: HEAD_C, bg: HEAD_L,
+      rule: "Named segments become brand assets. Unnamed moments disappear. The difference between a format and a one-off is the name.",
+      culturistas: "IDTSH is a named segment. This means: it can be used in clip titles ('Nicole Kidman does IDTSH'), in episode descriptions, in marketing copy, and in audience expectation-setting. The name is doing marketing work that the production doesn't have to do.",
+      apply: "For every recurring segment in a developing show, assign a name before the first episode airs. The name should describe what the segment feels like, not what it discusses. 'Hot Ones' names the sensation, not the topic. 'IDTSH' names the attitude, not the subject. 'First Instinct,' 'The Honest Answer,' 'No Analysis Allowed' — these are segment names that tell the audience what register they're entering.",
+      warning: "Generic segment names ('rapid fire,' 'deep dive,' 'lightning round') do not become brand assets. They describe the format but not the feeling. The feeling is the brand."
+    },
+  ];
+
+  return <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+    <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}` }}>
+      <SL color="rgba(255,255,255,0.4)">What Culturistas Gets Right — Extracted as Principles</SL>
+      <p style={{ fontSize:12, color:"rgba(255,255,255,0.82)", lineHeight:1.7, margin:0 }}>
+        Culturistas has been building for 10 years. What it has figured out about host chemistry, permission structure, and tertiary intelligence activation is not accidental — but it also isn't articulated anywhere in how the show is discussed or developed. These five principles extract what the show does structurally and translate them into a template that can be applied to any developing show in the iHeart portfolio.
+      </p>
+    </Card>
+    {principles.map((p,i)=>(
+      <Card key={i} style={{ borderLeft:`3px solid ${p.color}` }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
+          <span style={{ fontFamily:"monospace", fontSize:22, color:C.border, fontWeight:700, lineHeight:1 }}>{p.num}</span>
+          <div>
+            <div style={{ fontWeight:700, fontSize:14, color:C.ink, marginBottom:4 }}>{p.title}</div>
+            <div style={{ background:p.bg, borderRadius:3, padding:"4px 10px", display:"inline-block" }}>
+              <span style={{ fontSize:11, color:p.color, fontWeight:600, lineHeight:1.5 }}>{p.rule}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10, paddingLeft:4 }}>
+          <div style={{ background:C.cream2, borderRadius:4, padding:"10px 12px" }}>
+            <SL>How Culturistas Does It</SL>
+            <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{p.culturistas}</p>
+          </div>
+          <div style={{ borderLeft:`2px solid ${C.green}`, paddingLeft:12 }}>
+            <SL color={C.green}>Application to Developing Shows</SL>
+            <p style={{ fontSize:11, color:C.ink, lineHeight:1.6, margin:0 }}>{p.apply}</p>
+          </div>
+          <div style={{ background:C.goldL, borderLeft:`2px solid ${C.gold}`, padding:"8px 12px", borderRadius:"0 4px 4px 0" }}>
+            <SL color={C.gold}>Warning</SL>
+            <p style={{ fontSize:11, color:C.ink, lineHeight:1.55, margin:0 }}>{p.warning}</p>
+          </div>
+        </div>
+      </Card>
+    ))}
+  </div>;
+}
+
+// ─── SHOW DIAGNOSTIC (main view) ─────────────────────────────────────────────
+const CULTURISTAS_DATA = {
+  show:"Culturistas", episode:"10th Anniversary — Nicole Kidman", status:"performing",
+  hosts:[
+    {
+      name:"Matt Rogers", role:"Co-Host",
+      dominant:"heart", secondary:"head", tertiary:"body",
+      dp:72, sp:22, tp:6,
+      dominantDesc:"Matt leads with emotional investment. His fandom is confessional and specific — he discloses personal stakes before he analyzes. The Batman Forever admission, the yearning conversation, the way he credits Nicole before he questions her. This is someone who connects through how much he feels before what he thinks.",
+      secondaryDesc:"Under pressure or in analysis mode, Matt's Head emerges — the research, the Criterion featurette prep, the cultural frameworks. But this always follows emotional investment, never leads it.",
+      tertiaryDesc:"Body/gut instinct is Matt's least-used dimension. He rarely operates from pure reactive instinct. When he does — the Antarctica takedown, the IDTSH segment — it's surprising, physical, and his most clippable moments.",
+      signals:[
+        "Discloses personal stakes before any analysis — 'Batman Forever was a queer awakening for me'",
+        "Emotional investment precedes intellectual engagement in every topic transition",
+        "'I am in a state of yearning right now' — confessional, not observational (min 17)",
+        "Says 'Sorry to get serious' and pivots away from Nicole's mother story at min 12 — Heart instinct redirecting away from discomfort",
+      ],
+      clips:[
+        { type:"Heart Clip — Acquisition", label:"Matt's Batman Forever disclosure (min 22)", note:"The queer awakening hook. Host vulnerability-first before asking the guest anything. This is the clip that reaches the audience the show hasn't found yet. Currently does not exist in their marketing." },
+        { type:"Body Clip — Viral", label:"IDTSH Antarctica rant (min 75–77)", note:"Tertiary dimension activated — reactive, physical, unguarded. His most instinctive 90 seconds. Currently placed too late in the episode. Highest TikTok velocity." },
+      ]
+    },
+    {
+      name:"Bowen Yang", role:"Co-Host",
+      dominant:"head", secondary:"heart", tertiary:"body",
+      dp:65, sp:28, tp:7,
+      dominantDesc:"Bowen leads with structured wit and cultural intelligence. He analyzes before he emotes. His observations are architecturally precise — he identifies the pattern first, then reacts to it. This is someone who connects through the quality of his thinking.",
+      secondaryDesc:"Heart emerges in Bowen as warmth and deep recognition — particularly with guests he reveres. With Nicole, his secondary dimension activates early and creates the safety that allows her vulnerability.",
+      tertiaryDesc:"Like Matt, Body/gut is Bowen's least-used dimension. When it appears — physical comedy, the outdoor furniture IDTSH — it's disarming precisely because it's unexpected from the show's more analytical voice.",
+      signals:[
+        "Structures observations as cultural argument before emotional response",
+        "Self-aware meta-commentary — 'we fawn too much' — Head monitoring Heart in real time",
+        "Analysis of Moulin Rouge precedes and contextualizes emotional response to it",
+        "Wit is architectural: builds to a punchline structurally, not impulsively",
+      ],
+      clips:[
+        { type:"Head Clip — New Listener Hook", label:"Cultural diagnosis moment on any topic", note:"Bowen's analytical precision and wit make this his most shareable content for new listeners — but it requires context. Best deployed after a Body clip has stopped the scroll." },
+        { type:"Body Clip — Surprise Value", label:"IDTSH outdoor furniture rant (min 75–77)", note:"Tertiary activation from the more analytical host. Surprising because it's Bowen. The contrast with his usual register is the clippability — audiences who know him feel rewarded." },
+      ]
+    }
+  ],
+  chemistry:{
+    score:88, type:"Complementary Tension",
+    desc:"Matt's Heart-dominant + Bowen's Head-dominant creates a productive polarity. Matt opens the emotional space; Bowen gives it intellectual structure. Neither dominates. The chemistry works because their dominant intelligences are different enough to create genuine exchange.",
+    blindspot:"Both hosts are Body/gut tertiary. The show rarely operates from pure reactive instinct — which means it can feel emotionally and intellectually rich but occasionally safe. The IDTSH segment is the structural solution to this: it forces Body/gut activation on a timer. The problem is it's placed too late in the episode to elevate the content that follows it.",
+    insight:"Move IDTSH to minute 25–35. At that position it functions as a structural pivot — it resets the energy and raises the ceiling on the Heart/Head exchange that follows. Right now it functions as a reward for listeners who stayed until the end. It should be the moment that makes them stay."
+  },
+  segments:[
+    { name:"IDTSH Segment", time:"Min 70–90", intel:"body", clip:95, energy:92, note:"Tertiary dimension for both hosts. Most clippable, most reactive, most surprising. PROBLEM: currently buried in hour 2. Should be at minute 25–35 where it can raise the ceiling on everything that follows." },
+    { name:"Nicole's Mother Disclosure", time:"Min 11–12", intel:"heart", clip:88, energy:90, note:"Highest emotional peak in the episode. Nicole's Heart fully open. Matt pivots away at the exact moment the conversation could go deepest. This moment exists in the transcript and does not exist in any marketing." },
+    { name:"Guest Deep Dive", time:"Min 10–40", intel:"heart", clip:78, energy:85, note:"Matt's Heart dominant activated. Nicole's vulnerability moments live here. Rich long-form content; requires episode context to land as clips." },
+    { name:"Cultural Analysis", time:"Min 40–60", intel:"head", clip:65, energy:70, note:"Bowen's Head dominant. Smart, precise, loyal-listener reward. Too context-dependent for new audience acquisition." },
+    { name:"Opening Banter", time:"Min 0–10", intel:"heart", clip:45, energy:80, note:"Warm-up. Establishes emotional tone. Rarely contains the show's best material. Low clip value." },
+  ],
+};
+
+const HEALTH_DATA = {
+  show:"Health Stuff", episode:"Multiple Episodes Analyzed", status:"underperforming",
+  hosts:[
+    {
+      name:"Hari Kondabolu", role:"Co-Host",
+      dominant:"body", secondary:"heart", tertiary:"head",
+      dp:60, sp:30, tp:10,
+      dominantDesc:"Hari leads from gut instinct and comic reaction. He processes through doing and responding — his intelligence is embodied, reactive, physical. This is a comedian's register: instinctive, grounded in the moment, trusting of the impulse.",
+      secondaryDesc:"Heart emerges as warmth and genuine curiosity. When Hari connects emotionally to a health topic, he becomes his most compelling — but this requires the topic to be personal, not clinical.",
+      tertiaryDesc:"Head/analytical is Hari's tertiary — he can access it, but it's not natural. When forced into clinical precision or expert register, he becomes an interviewer rather than a host. This is what the current format is asking of him.",
+      signals:[
+        "Comic reactions are instinctive and physical — responds to information in the body before the mind",
+        "Most engaged when topics connect to lived experience, not medical frameworks",
+        "Interviewer mode (tertiary Head) visibly flattens his energy and output",
+      ],
+      clips:[]
+    },
+    {
+      name:"Dr. Priyanka Wali", role:"Co-Host",
+      dominant:"head", secondary:"head", tertiary:"heart",
+      dp:78, sp:15, tp:7,
+      dominantDesc:"Dr. Wali leads from analytical authority. Her medical training has built a dominant Head intelligence that operates from precision, correctness, and structured knowledge. This is appropriate for her expertise — and it's exactly what makes chemistry with Hari structurally difficult.",
+      secondaryDesc:"Under pressure, Dr. Wali defaults to more Head — more precision, more qualification. There is no stress-release valve into Heart or Body. This creates a tightening effect when the show encounters difficulty.",
+      tertiaryDesc:"Heart/warmth is Dr. Wali's growth edge and the show's biggest opportunity. When she accesses it — personal story, admitted uncertainty — the episode transforms. But the medical expert identity actively suppresses this dimension.",
+      signals:[
+        "Qualifies almost every statement — 'studies suggest,' 'it depends,' 'we need more data'",
+        "Expertise register creates distance rather than audience access",
+        "Warmth emerges briefly when discussing patient stories — then retreats into clinical frame",
+      ],
+      clips:[]
+    }
+  ],
+  chemistry:{
+    score:42, type:"Blocked Tension",
+    desc:"Hari is Body-dominant; Dr. Wali is Head-dominant. This combination should create excellent chemistry — the embodied comedian and the analytical expert are natural foils. The problem is that the show's format is suppressing Hari's Body instinct and preventing Dr. Wali's Heart from emerging. Both hosts are operating in their non-dominant registers.",
+    blindspot:"The show format is asking Hari to be an interviewer (Head) and Dr. Wali to be a teacher (Head). Neither host is leading from their natural dominant. The chemistry potential exists — it is being blocked by format design, not by the hosts.",
+    insight:"The fix is not a new host. It is a format shift. Give Hari explicit permission to react from Body/gut — his comic instinct in response to medical information is the show's differentiator. Design segments that require Dr. Wali to access Heart — patient stories, personal experience, admitted uncertainty."
+  },
+  segments:[
+    { name:"Medical Explainer", time:"Most of episode", intel:"head", clip:28, energy:45, note:"Both hosts in Head register. Flat. No dimension contrast. Not clippable without significant audience investment." },
+    { name:"Hari Reaction Moments", time:"Scattered", intel:"body", clip:72, energy:78, note:"When Hari's gut instinct breaks through — these are the show's best moments and they are happening by accident, not design." },
+    { name:"Patient Story Segments", time:"Occasional", intel:"heart", clip:65, energy:70, note:"When Dr. Wali accesses Heart through patient narrative — the show's chemistry potential is briefly visible." },
+  ],
+};
+
+function ShowDiagnostic({ data, isPerforming }) {
+  const [section, setSection] = React.useState("hosts");
+  const chemColor = data.chemistry.score>=70?C.green:data.chemistry.score>=50?C.gold:C.accent;
+
+  const tabs = isPerforming
+    ? ["hosts","chemistry","segments","marketing","creative","template"]
+    : ["hosts","chemistry","segments"];
+
+  return <div>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, flexWrap:"wrap", gap:10 }}>
+      <div>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4, flexWrap:"wrap" }}>
+          <h2 style={{ fontSize:20, fontWeight:700, color:C.ink, margin:0 }}>{data.show}</h2>
+          <Tag color={isPerforming?C.green:C.accent} bg={isPerforming?C.greenL:C.accentL}>
+            {isPerforming?"Performing":"Underperforming"}
+          </Tag>
+        </div>
+        <div style={{ fontSize:10, color:C.ink3, fontFamily:"monospace" }}>{data.episode}</div>
+      </div>
+      <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+        {tabs.map(s=>(
+          <button key={s} onClick={()=>setSection(s)} style={{
+            background:section===s?C.ink:"transparent",
+            color:section===s?C.white:C.ink3,
+            border:`0.5px solid ${section===s?C.ink:C.border}`,
+            padding:"5px 10px", borderRadius:4, cursor:"pointer",
+            fontFamily:"monospace", fontSize:8, letterSpacing:"0.08em", textTransform:"uppercase"
+          }}>{s}</button>
+        ))}
+      </div>
+    </div>
+
+    {section==="hosts" && (
+      <div style={{ display:"flex", gap:14 }}>
+        {data.hosts.map((h,i)=><HostCard key={i} host={h}/>)}
+      </div>
+    )}
+
+    {section==="chemistry" && (
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <Card>
+          <div style={{ display:"flex", gap:20, alignItems:"flex-start" }}>
+            <div style={{ flexShrink:0, textAlign:"center" }}>
+              <ScoreCircle score={data.chemistry.score} color={chemColor} size={70}/>
+              <div style={{ fontSize:8, color:C.ink3, fontFamily:"monospace", marginTop:4 }}>CHEMISTRY</div>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700, fontSize:15, color:C.ink, marginBottom:8 }}>{data.chemistry.type}</div>
+              <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+                {data.hosts.map((h,i)=>(
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:6, background:C.cream2, padding:"4px 10px", borderRadius:4 }}>
+                    <span style={{ fontSize:11, fontWeight:600, color:C.ink }}>{h.name}</span>
+                    <IB type={h.dominant}/>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:0 }}>{data.chemistry.desc}</p>
+            </div>
+          </div>
+        </Card>
+        <Card style={{ borderLeft:`3px solid ${C.gold}`, background:C.goldL }}>
+          <SL color={C.gold}>Blind Spot</SL>
+          <p style={{ fontSize:12, color:C.ink, lineHeight:1.65, margin:0 }}>{data.chemistry.blindspot}</p>
+        </Card>
+        <Card style={{ borderLeft:`3px solid ${C.accent}`, background:C.accentL }}>
+          <SL color={C.accent}>System Recommendation</SL>
+          <p style={{ fontSize:12, color:C.ink, lineHeight:1.65, margin:0, fontWeight:500 }}>{data.chemistry.insight}</p>
+        </Card>
+      </div>
+    )}
+
+    {section==="segments" && (
+      <Card>
+        <SL>Segment Intelligence — Clippability & Energy by Intelligence Type</SL>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {data.segments.map((seg,i)=>{
+            const sc=seg.clip>=80?C.green:seg.clip>=60?C.gold:C.accent;
+            return <div key={i} style={{ display:"flex", gap:14, alignItems:"flex-start", padding:12, background:C.cream2, borderRadius:6 }}>
+              <div style={{ flexShrink:0, textAlign:"center" }}>
+                <ScoreCircle score={seg.clip} color={sc} size={46}/>
+                <div style={{ fontSize:8, color:C.ink3, fontFamily:"monospace", marginTop:2 }}>CLIP</div>
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+                  <span style={{ fontWeight:600, fontSize:13, color:C.ink }}>{seg.name}</span>
+                  <IB type={seg.intel}/>
+                  <Tag>{seg.time}</Tag>
+                </div>
+                <div style={{ marginBottom:6 }}>
+                  <div style={{ fontSize:9, color:C.ink3, fontFamily:"monospace", marginBottom:3 }}>ENERGY {seg.energy}%</div>
+                  <div style={{ width:100, height:4, background:C.border, borderRadius:2 }}>
+                    <div style={{ height:4, width:`${seg.energy}%`, background:C.blue, borderRadius:2 }}/>
+                  </div>
+                </div>
+                <p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0 }}>{seg.note}</p>
+              </div>
+            </div>;
+          })}
+        </div>
+      </Card>
+    )}
+
+    {section==="marketing" && <MarketingIntel/>}
+    {section==="creative" && <CreativeDev/>}
+    {section==="template" && <ShowTemplate/>}
+  </div>;
+}
+
+// ─── TALENT EVALUATOR ─────────────────────────────────────────────────────────
+function MiniBar({ score, color, width=120 }) {
+  return <div style={{ width, height:5, background:C.border, borderRadius:3, overflow:"hidden" }}>
+    <div style={{ width:`${score}%`, height:5, background:color, borderRadius:3 }}/>
+  </div>;
+}
+
+function TalentEvaluator() {
+  const [activeCreator, setActiveCreator] = React.useState(0);
+  const [layer, setLayer] = React.useState("overview");
+
+  const creators = [
+    {
+      name:"Jordan Vela", handle:"@jordanvela",
+      niche:"First-gen money / financial shame",
+      followers:"890K", avgViews:"2.1M", engRate:"6.8%", shareRate:"1.4%",
+      dominant:"heart", secondary:"body", tertiary:"head", dp:68, sp:24, tp:8,
+      rec:"Greenlight", recColor:C.green, recBg:C.greenL,
+
+      // Layer 1 — Industry Standard Signals
+      industry: {
+        engRate: { score:82, label:"6.8%", note:"Well above platform average of 3–5%. Audience is active, not passive." },
+        shareRate: { score:90, label:"1.4%", note:"Exceptional. Industry exceptional threshold is 1%+. Content is being sent, not just watched." },
+        retention: { score:74, label:"~74%", note:"Strong for a non-entertainment niche. Viewers stay through the emotional premise before any framework is introduced." },
+        communityQuality: { score:80, label:"High", note:"Comment-to-like ratio is elevated. Comments are personal disclosures ('this is literally me'), not reactions. Followers are participants, not spectators." },
+        nicheClarity: { score:88, label:"Clear", note:"'First-gen money shame' is a specific, underserved lane. Audience knows exactly what they're getting and why they're there." },
+        growthTrajectory: { score:72, label:"Steady", note:"Month-over-month growth is consistent rather than spike-driven. No single viral moment dependency — the account compounds." },
+      },
+
+      // Layer 2 — KNOWN Psychological Intelligence
+      known: {
+        protagonistClarity: {
+          score:84,
+          desc:"Jordan's protagonist is unmistakable within 10 seconds of any clip: someone who grew up without financial literacy and is discovering it in real time. This is a story the audience is being invited into — not a performance they're watching.",
+          signals:["'I didn't learn this growing up' — stated or implied in nearly every clip","First-person discovery framing, not expert instruction","Emotional stakes (shame, family, identity) named before financial mechanics"],
+        },
+        dimensionalRange: {
+          score:76,
+          desc:"Heart-dominant with a clear and functional secondary Body dimension. The reactive, unscripted moments — when Jordan responds to a comment or breaks from the script — show a secondary register that will sustain conversation. Tertiary Head is present but undeveloped.",
+          signals:["Heart: confessional framing, personal stakes, parasocial intimacy","Body: reactive moments when challenged or surprised feel instinctive and unguarded","Head: financial frameworks are present but always subordinated to story — tertiary, not primary"],
+        },
+        formatPortability: {
+          score:78,
+          desc:"Heart-dominant creators typically translate well to long-form because their connection mechanism — intimacy, disclosure, emotional stakes — deepens with time rather than requiring platform feedback loops. Jordan does not need an algorithm to keep the audience; she needs a topic that sustains emotional investment.",
+          risk:"The Body secondary dimension in short-form is partly fueled by comment interaction and real-time response. In a studio recording without that feedback, the Body instinct may flatten. Format design should include guest interaction or listener call-in to replicate that reactive register.",
+        },
+        audienceRelationship: {
+          score:86,
+          desc:"Followers are there for Jordan's perspective, not her participation in trends. Comments reveal identity-level loyalty: 'you're describing my life.' This is the highest-portability audience type — they follow the person, not the content category. They will travel to a new format.",
+          risk:"Low trend-dependency means lower viral ceiling but higher subscriber conversion. The right metric for this creator is podcast subscriber retention, not episode downloads.",
+        },
+        conversationReadiness: {
+          score:68,
+          desc:"Strong point of view. Clear emotional range. The question is structural: can Jordan hold 45 minutes without the clip format's built-in compression? Short-form success doesn't prove long-form stamina — it proves that the hook is strong. Long-form requires the host to generate and sustain, not just respond.",
+          development:"Format coaching recommended before launch. Specifically: practice holding a topic thread across 20+ minutes without a reset. The emotional intelligence is there; the structural discipline is the growth edge.",
+        },
+        nicheGapAnalysis: {
+          score:92,
+          desc:"First-generation wealth building through an emotional, shame-informed lens does not exist on iHeart. The current iHeart finance adjacent roster skews toward analytical authority (expert-first) or aspirational (hustle-first). Jordan's Heart-dominant approach to money — you don't have to be smart, you have to be honest about what you don't know — fills a gap that has a large, loyal, and currently underserved audience.",
+          comps:"Early Ramit Sethi (identity lens on personal finance) + Gaby Dunn (financial shame as content). Neither voice is currently on iHeart. The first-gen money conversation is happening on TikTok without a long-form home.",
+        },
+      },
+
+      overallScore: 81,
+      risks:[
+        "Tertiary Head dimension will need format coaching for long-form structural coherence",
+        "Reactive Body energy (secondary) is partly platform-dependent — studio design matters",
+        "No existing long-form content to validate 45-minute stamina",
+      ],
+    },
+    {
+      name:"Marcus Webb", handle:"@marcuswebb",
+      niche:"Black men's mental health / therapy destigmatization",
+      followers:"1.2M", avgViews:"3.4M", engRate:"4.2%", shareRate:"0.8%",
+      dominant:"body", secondary:"heart", tertiary:"head", dp:62, sp:30, tp:8,
+      rec:"Develop", recColor:C.gold, recBg:C.goldL,
+
+      industry: {
+        engRate: { score:68, label:"4.2%", note:"Solid for the niche. Engagement is strong but not exceptional — the content resonates with existing community rather than spreading to new audiences." },
+        shareRate: { score:55, label:"0.8%", note:"Below the 1% exceptional threshold. Content is valued by the core audience but not being sent widely. May indicate message is resonating without being transferable." },
+        retention: { score:66, label:"~66%", note:"Moderate. Drop-off suggests the emotional hook is landing but the follow-through — the argument or story — needs development to hold viewers to the end." },
+        communityQuality: { score:85, label:"Very High", note:"Exceptional comment quality. Men disclosing personal mental health struggles in comments is rare and indicates deep community trust. This audience is highly loyal but currently small relative to the topic's reach potential." },
+        nicheClarity: { score:82, label:"Clear", note:"Black men + therapy destigmatization is a defined lane with real cultural urgency. The audience knows what they're there for. The topic has more cultural moment than his current reach suggests." },
+        growthTrajectory: { score:58, label:"Plateauing", note:"Growth has flattened in the last 90 days despite cultural tailwinds. The content may be reaching the existing community ceiling without a format or hook that breaks into new audiences." },
+      },
+
+      known: {
+        protagonistClarity: {
+          score:72,
+          desc:"Marcus's protagonist is a Black man who decided to go to therapy and is documenting what that looks like — but the character clarity is inconsistent across clips. Some posts lead with the person; others lead with the topic. The clips where Marcus is the protagonist (not the spokesperson) are significantly stronger.",
+          signals:["Best clips: Marcus reacting to his own therapy discoveries in real time","Weaker clips: Marcus explaining why Black men should go to therapy — spokesperson mode","The protagonist needs to be more consistently present; the cause needs to recede"],
+        },
+        dimensionalRange: {
+          score:70,
+          desc:"Body-dominant with a strong and emotionally resonant secondary Heart. The combination produces content that feels physically grounded and emotionally safe — which is exactly right for a mental health destigmatization audience. Tertiary Head is underdeveloped but not a liability for this niche.",
+          signals:["Body: physical expressiveness, gut-level reactions to therapy revelations, comedy as deflection then disclosure","Heart: genuine warmth and community care, the audience trusts him with vulnerability","Head: analytical framing is present in some clips but feels performative rather than natural"],
+        },
+        formatPortability: {
+          score:64,
+          desc:"Body-dominant creators face the highest format translation risk. The instinctive, reactive energy that works in 60-second clips is partly generated by the format's compression and the audience's real-time feedback. In a studio setting without that feedback loop, Body-dominant hosts can deflate or over-perform.",
+          risk:"Recommendation: test Marcus in a recorded conversation format — not a solo monologue — before committing to a show. His Body instinct needs a conversational partner to react against. Guest-driven or call-in formats will serve him better than solo hosting.",
+        },
+        audienceRelationship: {
+          score:78,
+          desc:"Followers are there for Marcus specifically — not for mental health content generally. This is a strong portability signal. However, the audience is currently narrow: primarily Black men aged 25–35 who have already decided therapy is something they're open to. The show needs to reach the unconvinced.",
+          risk:"The podcast format will need to work harder to expand beyond the converted audience. The unconvinced audience is larger and more valuable — but Marcus's current content doesn't speak to them yet.",
+        },
+        conversationReadiness: {
+          score:74,
+          desc:"Strong. Body-dominant hosts are typically good conversationalists because they respond instinctively and honestly. Marcus's community trust gives him permission to go deep with guests quickly. The structural challenge is sustaining a through-line across 45 minutes without the short-form's natural compression points.",
+          development:"Guest selection will be critical. Marcus needs guests whose own vulnerability unlocks his — the same permission structure principle as Culturistas. His Body instinct will carry the conversation; his Heart secondary will sustain it.",
+        },
+        nicheGapAnalysis: {
+          score:88,
+          desc:"Black men's mental health as a podcast topic exists but has not been led by a Body-dominant host with Marcus's community credibility and comic register. Current shows in this space skew either Head-dominant (clinical, educational) or Heart-dominant (emotional, testimonial). Marcus's Body + Heart combination — comedy leading into vulnerability — is different and more accessible to the unconvinced audience.",
+          comps:"Nearest comp is early 'Brilliant Idiots' (comedy as the permission structure for serious conversation) applied to mental health. That combination doesn't exist in this niche at scale.",
+        },
+      },
+
+      overallScore:71,
+      risks:[
+        "Body-dominant format portability risk — studio environment may flatten reactive energy",
+        "Audience currently narrow (already-converted); show needs format to reach the unconvinced",
+        "Growth plateauing on TikTok suggests content ceiling — new hook or format needed regardless of podcast",
+        "Protagonist clarity inconsistent — spokesperson mode underperforms person-as-protagonist mode",
+      ],
+    },
+  ];
+
+  const cr = creators[activeCreator];
+  const domC = cr.dominant==="heart"?HEART_C:cr.dominant==="head"?HEAD_C:BODY_C;
+  const layers = ["overview","industry","known"];
+
+  const IndustryRow = ({ label, data, color }) => (
+    <div style={{ display:"flex", gap:14, alignItems:"flex-start", padding:"10px 0", borderBottom:`0.5px solid ${C.border}` }}>
+      <div style={{ width:130, flexShrink:0 }}>
+        <div style={{ fontSize:10, fontWeight:600, color:C.ink, marginBottom:4 }}>{label}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <MiniBar score={data.score} color={color} width={80}/>
+          <span style={{ fontSize:10, fontWeight:700, color, fontFamily:"monospace" }}>{data.label}</span>
+        </div>
+      </div>
+      <p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0, flex:1 }}>{data.note}</p>
+    </div>
+  );
+
+  const KnownRow = ({ label, data, color, showSignals=false }) => (
+    <Card style={{ marginBottom:12 }}>
+      <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
+        <div style={{ flexShrink:0, textAlign:"center" }}>
+          <ScoreCircle score={data.score} color={color} size={48}/>
+        </div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:6 }}>{label}</div>
+          <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:"0 0 8px" }}>{data.desc}</p>
+          {data.risk && (
+            <div style={{ background:C.goldL, borderLeft:`2px solid ${C.gold}`, padding:"6px 10px", borderRadius:"0 3px 3px 0", marginBottom:8 }}>
+              <span style={{ fontSize:9, fontFamily:"monospace", color:C.gold, fontWeight:700 }}>FORMAT RISK — </span>
+              <span style={{ fontSize:11, color:C.ink }}>{data.risk}</span>
+            </div>
+          )}
+          {data.development && (
+            <div style={{ background:C.blueL, borderLeft:`2px solid ${C.blue}`, padding:"6px 10px", borderRadius:"0 3px 3px 0", marginBottom:8 }}>
+              <span style={{ fontSize:9, fontFamily:"monospace", color:C.blue, fontWeight:700 }}>DEVELOPMENT NOTE — </span>
+              <span style={{ fontSize:11, color:C.ink }}>{data.development}</span>
+            </div>
+          )}
+          {data.comps && (
+            <div style={{ background:C.purpleL, borderLeft:`2px solid ${C.purple}`, padding:"6px 10px", borderRadius:"0 3px 3px 0", marginBottom:8 }}>
+              <span style={{ fontSize:9, fontFamily:"monospace", color:C.purple, fontWeight:700 }}>PORTFOLIO COMPS — </span>
+              <span style={{ fontSize:11, color:C.ink }}>{data.comps}</span>
+            </div>
+          )}
+          {showSignals && data.signals && (
+            <div>
+              {data.signals.map((s,i)=>(
+                <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:4 }}>
+                  <Dot color={color}/><p style={{ fontSize:11, color:C.ink2, lineHeight:1.5, margin:0 }}>{s}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+
+  return <div>
+    {/* Header */}
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, flexWrap:"wrap", gap:10 }}>
+      <div>
+        <h2 style={{ fontSize:20, fontWeight:700, color:C.ink, margin:"0 0 4px" }}>Talent Evaluator</h2>
+        <p style={{ fontSize:11, color:C.ink3, margin:0 }}>Two-layer evaluation: industry standard signals + KNOWN psychological intelligence. What others measure — and what they miss.</p>
+      </div>
+    </div>
+
+    {/* Framework explainer */}
+    <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}`, marginBottom:16 }}>
+      <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+        <div style={{ flex:1, minWidth:200 }}>
+          <div style={{ fontSize:9, fontFamily:"monospace", color:"rgba(255,255,255,0.4)", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Layer 1 — Industry Standard</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.85)", lineHeight:1.6 }}>What every talent evaluator already uses: engagement rate, share rate, retention, community quality, niche clarity, growth trajectory. These signals tell you <em>that</em> someone is connecting.</div>
+        </div>
+        <div style={{ width:1, background:"rgba(255,255,255,0.1)", flexShrink:0 }}/>
+        <div style={{ flex:1, minWidth:200 }}>
+          <div style={{ fontSize:9, fontFamily:"monospace", color:HEART_C, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Layer 2 — KNOWN Intelligence</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.85)", lineHeight:1.6 }}>What nobody else is measuring: protagonist clarity, dimensional range, format portability, audience relationship type, conversation readiness, niche gap. These signals tell you <em>why</em> someone is connecting — and whether that mechanism survives format translation to podcast.</div>
+        </div>
+      </div>
+    </Card>
+
+    {/* Creator selector */}
+    <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+      {creators.map((c,i)=>(
+        <button key={i} onClick={()=>{ setActiveCreator(i); setLayer("overview"); }} style={{
+          border:`0.5px solid ${activeCreator===i?C.ink:C.border}`,
+          background:activeCreator===i?C.ink:C.white,
+          borderRadius:6, padding:"10px 14px", cursor:"pointer", textAlign:"left",
+        }}>
+          <div style={{ fontSize:12, fontWeight:700, color:activeCreator===i?C.white:C.ink, marginBottom:3 }}>{c.name}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontSize:9, fontFamily:"monospace", color:activeCreator===i?"rgba(255,255,255,0.5)":C.ink3 }}>{c.handle}</span>
+            <span style={{ background:c.recBg, color:c.recColor, fontSize:8, fontWeight:700,
+              padding:"2px 6px", borderRadius:2, fontFamily:"monospace", textTransform:"uppercase" }}>{c.rec}</span>
+          </div>
+        </button>
+      ))}
+      <button style={{ border:`0.5px dashed ${C.border}`, background:"transparent", borderRadius:6,
+        padding:"10px 14px", cursor:"pointer", color:C.ink3, fontSize:11, display:"flex", alignItems:"center", gap:6 }}>
+        <span style={{ fontSize:16, lineHeight:1 }}>+</span> Add Creator
+      </button>
+    </div>
+
+    {/* Layer tabs */}
+    <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+      {[["overview","Overview"],["industry","Layer 1 — Industry Signals"],["known","Layer 2 — KNOWN Intelligence"]].map(([id,label])=>(
+        <button key={id} onClick={()=>setLayer(id)} style={{
+          background:layer===id?C.ink:"transparent",
+          color:layer===id?C.white:C.ink3,
+          border:`0.5px solid ${layer===id?C.ink:C.border}`,
+          padding:"5px 12px", borderRadius:4, cursor:"pointer",
+          fontFamily:"monospace", fontSize:8, letterSpacing:"0.07em", textTransform:"uppercase"
+        }}>{label}</button>
+      ))}
+    </div>
+
+    {/* OVERVIEW */}
+    {layer==="overview" && <div>
+      <div style={{ display:"flex", gap:14, marginBottom:14, flexWrap:"wrap" }}>
+        {/* Left: scores summary */}
+        <Card style={{ flex:1, minWidth:260 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+            <div>
+              <div style={{ fontSize:17, fontWeight:700, color:C.ink, marginBottom:2 }}>{cr.name}</div>
+              <div style={{ fontSize:9, fontFamily:"monospace", color:C.ink3 }}>{cr.handle} · {cr.niche}</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <ScoreCircle score={cr.overallScore} color={cr.recColor} size={56}/>
+              <div style={{ fontSize:8, fontFamily:"monospace", color:C.ink3, marginTop:3 }}>OVERALL</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
+            <span style={{ background:cr.recBg, color:cr.recColor, fontSize:9, fontWeight:700,
+              padding:"3px 10px", borderRadius:3, fontFamily:"monospace", textTransform:"uppercase" }}>{cr.rec}</span>
+            <IB type={cr.dominant}/>
+            <Tag>{cr.followers} followers</Tag>
+            <Tag>{cr.avgViews} avg views</Tag>
+          </div>
+          <SL>Intelligence Profile</SL>
+          <IntelBar dominant={cr.dominant} secondary={cr.secondary} tertiary={cr.tertiary} dp={cr.dp} sp={cr.sp} tp={cr.tp}/>
+          <Hr/>
+          <SL>Development Risks</SL>
+          {cr.risks.map((r,i)=>(
+            <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:6 }}>
+              <Dot color={C.accent}/><p style={{ fontSize:11, color:C.ink2, lineHeight:1.5, margin:0 }}>{r}</p>
+            </div>
+          ))}
+        </Card>
+
+        {/* Right: score grid */}
+        <div style={{ display:"flex", flexDirection:"column", gap:8, width:220, flexShrink:0 }}>
+          <div style={{ fontSize:9, fontFamily:"monospace", color:C.ink3, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:2 }}>Score Summary</div>
+          {[
+            ["Protagonist Clarity", cr.known.protagonistClarity.score, domC],
+            ["Dimensional Range", cr.known.dimensionalRange.score, domC],
+            ["Format Portability", cr.known.formatPortability.score, C.gold],
+            ["Audience Relationship", cr.known.audienceRelationship.score, C.green],
+            ["Conversation Readiness", cr.known.conversationReadiness.score, C.blue],
+            ["Niche Gap", cr.known.nicheGapAnalysis.score, C.purple],
+            ["Engagement Rate", cr.industry.engRate.score, C.ink2],
+            ["Share Rate", cr.industry.shareRate.score, C.ink2],
+            ["Community Quality", cr.industry.communityQuality.score, C.ink2],
+          ].map(([label,score,color],i)=>(
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
+              padding:"6px 10px", background:i<6?C.cream2:C.white,
+              border:`0.5px solid ${C.border}`, borderRadius:4 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10, color:C.ink, marginBottom:3 }}>{label}</div>
+                <MiniBar score={score} color={color} width={100}/>
+              </div>
+              <span style={{ fontSize:11, fontWeight:700, color, fontFamily:"monospace", flexShrink:0 }}>{score}</span>
+            </div>
+          ))}
+          <div style={{ fontSize:8, fontFamily:"monospace", color:C.ink3, marginTop:2 }}>
+            Top 6 = KNOWN layer · Bottom 3 = Industry layer
+          </div>
+        </div>
+      </div>
+
+      {/* Comps + gap */}
+      <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
+        <Card style={{ flex:1, minWidth:240, borderTop:`3px solid ${C.purple}` }}>
+          <SL color={C.purple}>Niche Gap Analysis</SL>
+          <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:"0 0 10px" }}>{cr.known.nicheGapAnalysis.desc}</p>
+          <div style={{ background:C.purpleL, borderRadius:4, padding:"8px 12px" }}>
+            <div style={{ fontSize:9, fontFamily:"monospace", color:C.purple, fontWeight:700, marginBottom:3 }}>PODCAST COMPS</div>
+            <p style={{ fontSize:11, color:C.ink, margin:0 }}>{cr.known.nicheGapAnalysis.comps}</p>
+          </div>
+        </Card>
+        <Card style={{ flex:1, minWidth:240, borderTop:`3px solid ${cr.recColor}` }}>
+          <SL>System Recommendation</SL>
+          <div style={{ background:cr.recBg, borderRadius:6, padding:12, marginBottom:12 }}>
+            <div style={{ fontSize:9, fontFamily:"monospace", color:cr.recColor, fontWeight:700, letterSpacing:"0.1em", marginBottom:4 }}>KNOWN RECOMMENDATION</div>
+            <div style={{ fontSize:16, fontWeight:700, color:cr.recColor }}>{cr.rec === "Greenlight" ? "Greenlight Conversation" : "Develop Before Committing"}</div>
+          </div>
+          <SL>Format Portability Note</SL>
+          <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{cr.known.formatPortability.desc}</p>
+        </Card>
+      </div>
+    </div>}
+
+    {/* INDUSTRY LAYER */}
+    {layer==="industry" && <div>
+      <Card>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+          <div style={{ fontWeight:700, fontSize:14, color:C.ink }}>{cr.name}</div>
+          <Tag>{cr.handle}</Tag>
+          <Tag color={C.ink2} bg={C.cream2}>{cr.followers} followers</Tag>
+          <Tag color={C.ink2} bg={C.cream2}>{cr.engRate} engagement</Tag>
+        </div>
+        <div style={{ background:C.cream2, borderRadius:4, padding:"8px 12px", marginBottom:14 }}>
+          <p style={{ fontSize:11, color:C.ink2, margin:0, lineHeight:1.55 }}>
+            <strong>What every evaluator sees.</strong> These are the metrics Anna's team runs manually when vetting a list of 50 TikTok creators. Strong numbers here mean the audience relationship is real. They do not tell you whether that relationship is portable to a different format.
+          </p>
+        </div>
+        <IndustryRow label="Engagement Rate" data={cr.industry.engRate} color={C.green}/>
+        <IndustryRow label="Share Rate" data={cr.industry.shareRate} color={cr.industry.shareRate.score>=80?C.green:cr.industry.shareRate.score>=60?C.gold:C.accent}/>
+        <IndustryRow label="Retention" data={cr.industry.retention} color={C.blue}/>
+        <IndustryRow label="Community Quality" data={cr.industry.communityQuality} color={C.green}/>
+        <IndustryRow label="Niche Clarity" data={cr.industry.nicheClarity} color={C.blue}/>
+        <IndustryRow label="Growth Trajectory" data={cr.industry.growthTrajectory} color={cr.industry.growthTrajectory.score>=70?C.green:cr.industry.growthTrajectory.score>=55?C.gold:C.accent}/>
+        <div style={{ marginTop:14, background:C.accentL, borderLeft:`2px solid ${C.accent}`, padding:"8px 12px", borderRadius:"0 4px 4px 0" }}>
+          <span style={{ fontSize:9, fontFamily:"monospace", color:C.accent, fontWeight:700 }}>THE LIMIT OF THIS LAYER — </span>
+          <span style={{ fontSize:11, color:C.ink }}>These signals confirm audience connection. They cannot tell you whether the connection mechanism — why people are watching — will survive a format change from 60-second video to 45-minute audio conversation. That requires Layer 2.</span>
+        </div>
+      </Card>
+    </div>}
+
+    {/* KNOWN LAYER */}
+    {layer==="known" && <div>
+      <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}`, marginBottom:14 }}>
+        <div style={{ fontSize:9, fontFamily:"monospace", color:"rgba(255,255,255,0.4)", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Layer 2 — KNOWN Psychological Intelligence</div>
+        <p style={{ fontSize:12, color:"rgba(255,255,255,0.82)", lineHeight:1.65, margin:0 }}>
+          These six dimensions measure the psychological source of audience connection — not just its outputs. They answer the question the industry is currently guessing at: will this creator's connection mechanism survive the translation from short-form video to long-form conversation?
+        </p>
+      </Card>
+      <KnownRow label="01 — Protagonist Clarity" data={cr.known.protagonistClarity} color={domC} showSignals={true}/>
+      <KnownRow label="02 — Dimensional Range" data={cr.known.dimensionalRange} color={domC} showSignals={true}/>
+      <KnownRow label="03 — Format Portability" data={cr.known.formatPortability} color={C.gold}/>
+      <KnownRow label="04 — Audience Relationship Type" data={cr.known.audienceRelationship} color={C.green}/>
+      <KnownRow label="05 — Conversation Readiness" data={cr.known.conversationReadiness} color={C.blue}/>
+      <KnownRow label="06 — Niche Gap Analysis" data={cr.known.nicheGapAnalysis} color={C.purple}/>
+    </div>}
+  </div>;
+}
+
+// ─── IP EXPANSION LAB ────────────────────────────────────────────────────────
+function IPExpansion() {
+  const [activeShow, setActiveShow] = React.useState(0);
+  const [activeSection, setActiveSection] = React.useState("score");
+
+  const shows = [
+    {
+      name: "Once Upon a Time in Nashville",
+      host: "Cornelia Rowe · Investigative Podcast",
+      genre: "True Crime / Southern Gothic",
+      ipScore: 91,
+      adaptFormat: "Limited Series — 8 Episodes",
+      comparables: ["Sharp Objects", "Mare of Easttown", "The Jinx"],
+      status: "demo",
+
+      workflow: [
+        { step: "01", label: "Podcast Transcript Ingested", desc: "KNOWN ingests the full podcast transcript — episodes, host narration, source interviews, documentary audio." },
+        { step: "02", label: "Character Intelligence Mapped", desc: "The system identifies every real person in the narrative and maps their dominant, secondary, and tertiary intelligence. Who are the protagonists? Who are the antagonists? Who transforms — and who doesn't?" },
+        { step: "03", label: "Narrative Engine Identified", desc: "KNOWN identifies the structural engine of the story: the central conflict, the asymmetry of power, the question the series will hold open. In this case: the establishment was not failing — it was working as designed." },
+        { step: "04", label: "Pitch Bible Generated", desc: "From the character intelligence and narrative engine, KNOWN produces a pitch bible draft: logline, character profiles with psychological arcs, episode structure, tone notes, and adaptation format recommendation." },
+      ],
+
+      ipCriteria: [
+        { label: "Protagonist Clarity", score: 94, color: HEART_C, note: "Cornelia Rowe is a fully dimensional protagonist: Head-dominant journalist whose Heart and Body emerge as the investigation becomes personal. Her arc — outsider investigator to establishment insider who speaks — is television-ready." },
+        { label: "Antagonist Dimensionality", score: 88, color: HEART_C, note: "Bryan Lewis is the show's locked variable — no transformation, no arc, no redemption. This is a rare antagonist structure: the system made flesh. Casey Moreland provides the Fall arc the series needs without making Lewis sympathetic." },
+        { label: "Narrative Engine", score: 95, color: HEAD_C, note: "The central question — not who pulled the trigger but how the establishment made the trigger available — is a television-native frame. It sustains 8 episodes without requiring resolution. The system is the antagonist. Systems don't get sentenced." },
+        { label: "Character Contrast", score: 90, color: HEAD_C, note: "Three women, same establishment, different fates: Leigh threatened it, Natalie spoke about it, Cornelia investigated it. This triptych structure is the show's architecture. Each woman's intelligence type maps to a different way of surviving — or not surviving — the same pressure system." },
+        { label: "World as Pressure System", score: 92, color: BODY_C, note: "Nashville is not a backdrop — it is an active force. The three cities (Belle Meade, Lower Broadway, the Vanished City) each exert different pressure on every character. This is the hallmark of prestige TV adaptation: when the setting has rules of its own." },
+        { label: "Unresolved Truth", score: 89, color: BODY_C, note: "The case was ruled a suicide. It has not been reopened. The men named in the pitch bible are alive and practicing. The statue is still there. This is not a true crime story where the podcast solved the case — it is a true crime story where the podcast named the system. Television audiences come for the truth. This show gives them a different and more disturbing truth." },
+      ],
+
+      logline: "When a fifth-generation Nashville journalist returns home for her mother's funeral and is pulled into investigating the death of a woman from her own social circle, she discovers that her access to the most powerful men in the city is the same access that made them powerful — and that the only way to tell the truth about home is to become the one person who said it on the record.",
+
+      characters: [
+        {
+          name: "Cornelia Rowe", role: "Protagonist · Investigative Journalist",
+          dominant: "head", secondary: "heart", tertiary: "body",
+          arc: "Begins as a journalist operating from professional distance — the case file as a way of organizing what would otherwise be grief. Ends as a citizen of the establishment she has been describing. The pivot: her access to these men is the same access that protected them. By the finale she has stopped operating from distance and put her name on the public record alongside theirs.",
+          clip: "Head-dominant: she builds a 20-point case summary on a wall, organizes sources into a hierarchy, uses structure to contain emotion. Heart breaks through: the night before she publishes Episode 7, she sits in her father's kitchen and asks whether she should. He sets a plate down. Doesn't answer. Body activates once, in the finale, when she walks to the courthouse statue. One physical act. The whole season's weight."
+        },
+        {
+          name: "Leigh Terry", role: "The Dead Woman · Belle Meade, 34",
+          dominant: "heart", secondary: "body", tertiary: "head",
+          arc: "Raised to believe her value was in what she gave. By the last weeks of her life, attempting for the first time to ask rather than perform — reaching her parents, looking for work, leaving the voicemail for Brooke. She dies in the act of trying to become someone she had never been allowed to be. The tragedy is that the transformation was real and the world did not give her time to finish it.",
+          clip: "Heart-dominant: the seduction, the warmth, the way the room rearranges itself when she enters. Body-secondary: the escalation, the threats at Wenzel's, the willingness to burn the room down. Head-tertiary: she never quite strategizes her way out. The iPad folders were the closest she came to a Head move — evidence, leverage, a plan. The iPad is missing."
+        },
+        {
+          name: "Natalie Amos", role: "The Pipeline Twin · The Woman Who Walked",
+          dominant: "body", secondary: "head", tertiary: "heart",
+          arc: "Natalie has decided the game is the only game. Her Body intelligence is survival instinct refined into calculation. Her Head-secondary is the wire, the FBI flip, the decision to run two operations simultaneously on the night Channel 4 films her. Heart-tertiary is the cost: she walks out alone. Declines the podcast. Declines the retrospective. Her silence is the silence of a woman who has decided being known is no longer worth what it costs.",
+          clip: "The Del Frisco's scene: Roy Matlock walks up and tells her she is next. She drives with him to Channel 4 that same night. Body instinct (terror) + Head secondary (calculation) in the same 20 minutes. Heart is what she spends to survive and doesn't get back."
+        },
+        {
+          name: "Bryan Lewis, Esq.", role: "Antagonist · The Inheritor",
+          dominant: "head", secondary: "head", tertiary: "head",
+          arc: "No arc. This is the point. Bryan does not transform. The show's central argument made into a single character: the establishment's locked variable. Casey Moreland gets sentenced and the establishment sheds him. Cornelia's podcast publishes and the establishment absorbs it. Bryan continues — clients, bills, church. The way things are done is still the way things are done.",
+          clip: "The finale: Moreland is sentenced. Bryan is at a Kid Rock press conference. The show cuts between the federal courthouse and Lower Broadway. This is the show's thesis shot."
+        },
+      ],
+
+      episodeEngine: [
+        { ep: "EP 1", title: "A Messier Story", intel: "heart", note: "The story finds Cornelia at her mother's funeral. The emotional register is established before the case is." },
+        { ep: "EP 2", title: "The Pipeline", intel: "head", note: "The legal architecture. How Leigh ended up in Bryan's apartment with his car and his gun, told as institutional history." },
+        { ep: "EP 3", title: "Dauphin Island", intel: "body", note: "April 2016. The Mobile trip in real time. Leigh threatens Bryan at dinner. Pesterfield flies her home. The if-anything-happens-to-me line, in the air." },
+        { ep: "EP 4", title: "The Three Weeks", intel: "heart", note: "Leigh's last hours. Four phone calls in ninety minutes. Long silence. The apartment closing in." },
+        { ep: "EP 5", title: "Jimmy", intel: "head", note: "The deeper history. 1990. The pattern is older than Leigh." },
+        { ep: "EP 6", title: "The Case on Trial", intel: "head", note: "The 20-point Final Case Summary deconstructed. The forensic toxicologist on the dog: I'm not buying three weeks." },
+        { ep: "EP 7", title: "Cherished Hearts", intel: "body", note: "Casey Moreland in two registers: the public-good story and the private pipeline, running simultaneously." },
+        { ep: "EP 8", title: "The Statue", intel: "heart", note: "The finale. Moreland sentenced. Bryan at Kid Rock. Cornelia walks to the courthouse statue. The establishment, in bronze, under Equality." },
+      ],
+
+      catalogCase: "Once Upon a Time in Nashville began as a podcast. KNOWN's character intelligence system identified that Cornelia Rowe had a fully three-dimensional protagonist arc, a television-native narrative engine, and a world that functions as a pressure system — the hallmarks of prestige adaptation. The pitch bible was generated from that analysis. The series is now in active development. This is the workflow KNOWN can apply to the iHeart catalog."
+    },
+    {
+      name: "iHeart Catalog Scan (Simulated)",
+      host: "500+ Shows · IP Potential Assessment",
+      genre: "Portfolio Analysis",
+      ipScore: null,
+      adaptFormat: null,
+      comparables: [],
+      status: "scan",
+
+      scanResults: [
+        { title: "Surviving Sarah", score: 88, format: "Limited Series", genre: "Domestic thriller / True crime", reason: "Clear 3-dimensional protagonist. Antagonist is a system (the family court apparatus). Unresolved truth. Strong world-as-pressure-system." },
+        { title: "The Long Con", score: 84, format: "Feature Film or Docuseries", genre: "Financial crime / Character study", reason: "Body-dominant protagonist (instinct, survival) against Head-dominant antagonist (frameworks, patience). Classic tension structure. IP in the fraud mechanics, not just the story." },
+        { title: "East of Everywhere", score: 79, format: "Drama Series — 2 Seasons", genre: "Southern Gothic / Family saga", reason: "Multigenerational narrative engine. Three hosts with contrasting intelligences who could map to three sibling protagonists. World is a pressure system (small-town inheritance). Needs protagonist arc development." },
+        { title: "What You Don't Know", score: 71, format: "Anthology — 6 Episodes", genre: "Medical / Institutional", reason: "Narrative engine present but protagonist clarity is low. Host is a strong analytical voice without a discernible personal arc. Recommend format development before IP pitch." },
+        { title: "The Reckoning", score: 65, format: "Feature Documentary", genre: "Social justice / Investigation", reason: "Strong world-as-pressure-system. Protagonist is a collective (a community) rather than an individual — limits dramatic adaptation potential. Best suited for documentary feature rather than scripted." },
+      ]
+    }
+  ];
+
+  const show = shows[activeShow];
+  const getIntelColor = t => t==="head"?HEAD_C:t==="heart"?HEART_C:BODY_C;
+  const getIntelBg = t => t==="head"?HEAD_L:t==="heart"?HEART_L:BODY_L;
+
+  return <div>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, flexWrap:"wrap", gap:10 }}>
+      <div>
+        <h2 style={{ fontSize:20, fontWeight:700, color:C.ink, margin:"0 0 4px" }}>IP Expansion · Podcast to Film/TV</h2>
+        <p style={{ fontSize:11, color:C.ink3, margin:0 }}>From podcast transcript to film & TV pitch bible. KNOWN identifies which shows in your catalog have adaptation potential — and generates the character psychology that buyers need to see.</p>
+      </div>
+    </div>
+
+    {/* Workflow explainer */}
+    <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}`, marginBottom:16 }}>
+      <div style={{ fontSize:9, fontFamily:"monospace", color:"rgba(255,255,255,0.4)", letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:10 }}>The KNOWN Workflow — Podcast to Pitch Bible</div>
+      <div style={{ display:"flex", gap:0, flexWrap:"wrap" }}>
+        {[
+          { step:"01", label:"Transcript Ingested", desc:"Full podcast audio transcribed and ingested into KNOWN" },
+          { step:"02", label:"Characters Mapped", desc:"Every real person in the narrative gets a tri-intelligence profile" },
+          { step:"03", label:"Narrative Engine", desc:"Central conflict, pressure system, and unresolved truth identified" },
+          { step:"04", label:"Pitch Bible Generated", desc:"Logline, character arcs, episode structure, adaptation format" },
+        ].map((w,i)=>(
+          <div key={i} style={{ flex:1, minWidth:140, padding:"0 12px 0 0", position:"relative" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+              <span style={{ fontFamily:"monospace", fontSize:11, color:C.accent, fontWeight:700 }}>{w.step}</span>
+              <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.15)" }}/>
+            </div>
+            <div style={{ fontSize:11, fontWeight:600, color:C.white, marginBottom:4 }}>{w.label}</div>
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.5 }}>{w.desc}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+
+    {/* Show selector */}
+    <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+      {shows.map((s,i)=>(
+        <button key={i} onClick={()=>{ setActiveShow(i); setActiveSection("score"); }} style={{
+          border:`0.5px solid ${activeShow===i?C.ink:C.border}`,
+          background:activeShow===i?C.ink:C.white,
+          borderRadius:6, padding:"10px 14px", cursor:"pointer", textAlign:"left",
+        }}>
+          <div style={{ fontSize:12, fontWeight:700, color:activeShow===i?C.white:C.ink, marginBottom:3 }}>{s.name}</div>
+          <div style={{ fontSize:9, fontFamily:"monospace", color:activeShow===i?"rgba(255,255,255,0.5)":C.ink3 }}>
+            {s.status==="demo" ? "Demo Case · Pitch Bible Available" : "Catalog Scan · Simulated Results"}
+          </div>
+        </button>
+      ))}
+    </div>
+
+    {/* DEMO CASE — Once Upon a Time in Nashville */}
+    {show.status==="demo" && <div>
+      {/* Section tabs */}
+      <div style={{ display:"flex", gap:5, marginBottom:16, flexWrap:"wrap" }}>
+        {[["score","IP Score"],["workflow","The Workflow"],["characters","Character Intelligence"],["episodes","Episode Engine"],["logline","Pitch Bible Preview"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setActiveSection(id)} style={{
+            background:activeSection===id?C.ink:"transparent",
+            color:activeSection===id?C.white:C.ink3,
+            border:`0.5px solid ${activeSection===id?C.ink:C.border}`,
+            padding:"5px 12px", borderRadius:4, cursor:"pointer",
+            fontFamily:"monospace", fontSize:8, letterSpacing:"0.07em", textTransform:"uppercase"
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* IP SCORE */}
+      {activeSection==="score" && <div>
+        <div style={{ display:"flex", gap:14, marginBottom:14, flexWrap:"wrap" }}>
+          <Card style={{ display:"flex", gap:20, alignItems:"flex-start", flex:1, minWidth:280 }}>
+            <div style={{ flexShrink:0, textAlign:"center" }}>
+              <ScoreCircle score={show.ipScore} color={C.green} size={72}/>
+              <div style={{ fontSize:8, fontFamily:"monospace", color:C.ink3, marginTop:4 }}>IP POTENTIAL</div>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:17, fontWeight:700, color:C.ink, marginBottom:4 }}>{show.name}</div>
+              <div style={{ fontSize:10, color:C.ink3, fontFamily:"monospace", marginBottom:10 }}>{show.genre}</div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+                <Tag color={C.green} bg={C.greenL}>Adapt Now</Tag>
+                <Tag color={C.blue} bg={C.blueL}>{show.adaptFormat}</Tag>
+              </div>
+              <div style={{ fontSize:9, fontFamily:"monospace", color:C.ink3, marginBottom:4 }}>COMPARABLES</div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {show.comparables.map((c,i)=><Tag key={i}>{c}</Tag>)}
+              </div>
+            </div>
+          </Card>
+          <Card style={{ flex:1, minWidth:240, borderTop:`3px solid ${C.green}` }}>
+            <SL color={C.green}>Why This Adapts</SL>
+            <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:0 }}>{show.catalogCase}</p>
+          </Card>
+        </div>
+        <Card>
+          <SL>IP Potential Criteria — 6 Dimensions</SL>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {show.ipCriteria.map((c,i)=>(
+              <div key={i} style={{ display:"flex", gap:14, alignItems:"flex-start", padding:12, background:C.cream2, borderRadius:6 }}>
+                <div style={{ flexShrink:0, textAlign:"center" }}>
+                  <ScoreCircle score={c.score} color={c.color} size={46}/>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:5 }}>{c.label}</div>
+                  <p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0 }}>{c.note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>}
+
+      {/* WORKFLOW */}
+      {activeSection==="workflow" && <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        <Card style={{ background:C.accentL, borderLeft:`3px solid ${C.accent}` }}>
+          <SL color={C.accent}>This Is How The Pitch Bible Was Made</SL>
+          <p style={{ fontSize:12, color:C.ink, lineHeight:1.65, margin:0 }}>
+            Cornelia Rowe's podcast existed as audio. KNOWN transcribed, ingested, and analyzed it. The character intelligence in the pitch bible — Cornelia's Head-dominant journalist arc, Leigh's Heart-dominant tragedy, Natalie's Body-instinct survival, Bryan Lewis's deliberate non-transformation — was not written by a development executive reading the transcript. It was generated by the system mapping the psychological intelligence of every person in the narrative against the tri-intelligence framework.
+          </p>
+        </Card>
+        {show.workflow.map((w,i)=>(
+          <Card key={i} style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+            <div style={{ fontFamily:"monospace", fontSize:22, color:C.border, fontWeight:700, lineHeight:1, flexShrink:0 }}>{w.step}</div>
+            <div>
+              <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:6 }}>{w.label}</div>
+              <p style={{ fontSize:12, color:C.ink2, lineHeight:1.6, margin:0 }}>{w.desc}</p>
+            </div>
+          </Card>
+        ))}
+        <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}` }}>
+          <SL color="rgba(255,255,255,0.4)">What This Means for the iHeart Catalog</SL>
+          <p style={{ fontSize:12, color:"rgba(255,255,255,0.82)", lineHeight:1.7, margin:0 }}>
+            iHeart has over 500 shows. Some of them contain the narrative engines, protagonist arcs, and world-as-pressure-system structures that make prestige television adaptation viable. None of them have been evaluated for that potential in a systematic way. KNOWN can scan the catalog, score every show against the six IP criteria, and surface the top 10–15 candidates in a single report. The development team then decides which ones to pursue — with a character intelligence foundation already built.
+          </p>
+        </Card>
+      </div>}
+
+      {/* CHARACTER INTELLIGENCE */}
+      {activeSection==="characters" && <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        <Card style={{ background:C.cream2 }}>
+          <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:0 }}>
+            This is what KNOWN generates from a podcast transcript: a full tri-intelligence profile for every major person in the narrative — protagonist, antagonist, supporting characters. Each profile maps dominant, secondary, and tertiary intelligence, identifies the arc, and pulls the specific transcript moments that demonstrate each dimension. This is the section of the pitch bible that buyers read first.
+          </p>
+        </Card>
+        {show.characters.map((ch,i)=>(
+          <Card key={i} style={{ borderLeft:`3px solid ${getIntelColor(ch.dominant)}` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:14, color:C.ink, marginBottom:3 }}>{ch.name}</div>
+                <div style={{ fontSize:9, fontFamily:"monospace", color:C.ink3 }}>{ch.role}</div>
+              </div>
+              <div style={{ display:"flex", gap:4 }}>
+                {[ch.dominant, ch.secondary, ch.tertiary].map((t,j)=>(
+                  <span key={j} style={{ background:getIntelBg(t), color:getIntelColor(t), fontFamily:"monospace",
+                    fontSize:7, fontWeight:700, padding:"2px 6px", borderRadius:2,
+                    opacity: j===0?1:j===1?0.75:0.5 }}>{t.toUpperCase()}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+              <div style={{ flex:1, minWidth:200 }}>
+                <SL color={getIntelColor(ch.dominant)}>Character Arc</SL>
+                <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{ch.arc}</p>
+              </div>
+              <div style={{ flex:1, minWidth:200, borderLeft:`0.5px solid ${C.border}`, paddingLeft:12 }}>
+                <SL>Intelligence in Action</SL>
+                <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{ch.clip}</p>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>}
+
+      {/* EPISODE ENGINE */}
+      {activeSection==="episodes" && <div>
+        <Card style={{ marginBottom:12, background:C.cream2 }}>
+          <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:0 }}>
+            KNOWN maps each episode to its dominant intelligence register — which dimension is primarily activated in that episode's narrative. A well-structured series alternates registers across the season to avoid dimensional fatigue. This show's 8-episode arc alternates Heart, Head, and Body activation across the season, with the finale returning to Heart for the closing emotional register.
+          </p>
+        </Card>
+        <Card>
+          <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+            {show.episodeEngine.map((ep,i)=>(
+              <div key={i} style={{ display:"flex", gap:14, alignItems:"flex-start",
+                padding:"12px 0", borderBottom: i<show.episodeEngine.length-1 ? `0.5px solid ${C.border}` : "none" }}>
+                <div style={{ width:50, flexShrink:0 }}>
+                  <div style={{ fontFamily:"monospace", fontSize:9, fontWeight:700, color:C.ink3, marginBottom:4 }}>{ep.ep}</div>
+                  <span style={{ background:getIntelBg(ep.intel), color:getIntelColor(ep.intel),
+                    fontSize:8, fontFamily:"monospace", fontWeight:700, padding:"2px 6px", borderRadius:2 }}>
+                    {ep.intel.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:4 }}>"{ep.title}"</div>
+                  <p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0 }}>{ep.note}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>}
+
+      {/* PITCH BIBLE PREVIEW */}
+      {activeSection==="logline" && <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}` }}>
+          <SL color="rgba(255,255,255,0.4)">Logline — Generated by KNOWN</SL>
+          <p style={{ fontSize:14, color:C.white, lineHeight:1.75, margin:0, fontStyle:"italic" }}>
+            "{show.logline}"
+          </p>
+        </Card>
+        <Card style={{ borderLeft:`3px solid ${C.accent}`, background:C.accentL }}>
+          <SL color={C.accent}>What It's Really About</SL>
+          <p style={{ fontSize:12, color:C.ink, lineHeight:1.7, margin:0 }}>
+            This is not a whodunit. The series is a methodical indictment of an institutional establishment — old families, private money, a legal apparatus, a prosecutor's office, a downtown bar empire, an underground gambling history, a country club network — that processed Leigh Terry the way it had processed others before her. The institutions designed to manage women like Leigh Terry were not failing. They were working as designed. Her death is what that looks like.
+          </p>
+        </Card>
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+          <Card style={{ flex:1, minWidth:220 }}>
+            <SL>Format</SL>
+            <div style={{ fontWeight:700, fontSize:14, color:C.ink, marginBottom:6 }}>Limited Series — 8 Episodes, One Hour</div>
+            <SL>Based On</SL>
+            <div style={{ fontSize:12, color:C.ink2, marginBottom:10 }}>The podcast Once Upon a Time in Nashville by Cornelia Rowe</div>
+            <SL>Genre</SL>
+            <div style={{ fontSize:12, color:C.ink2, marginBottom:10 }}>Prestige True Crime / Southern Gothic</div>
+            <SL>Comparables</SL>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {show.comparables.map((c,i)=><Tag key={i}>{c}</Tag>)}
+            </div>
+          </Card>
+          <Card style={{ flex:1, minWidth:220 }}>
+            <SL>Why Now</SL>
+            <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:"0 0 12px" }}>
+              The podcast aired in 2024 and continues to be downloaded. The men named in the pitch bible are alive, in their public positions, and the institutions that protected them are still operating. The series is not a period piece. It is an argument about an establishment that is still standing.
+            </p>
+            <SL>The Closing Image</SL>
+            <p style={{ fontSize:12, color:C.ink2, lineHeight:1.65, margin:0 }}>
+              The Adolpho Burch statue at the Davidson County Criminal Courthouse. Dedicated August 27, 2016 — three months after Leigh's body was found. The names inscribed under "Equality" include the attorney who gave her the gun and the judge she had been made to sleep with to avoid jail. The statue is still there.
+            </p>
+          </Card>
+        </div>
+        <Card style={{ background:C.goldL, borderLeft:`3px solid ${C.gold}` }}>
+          <SL color={C.gold}>Note to iHeart Development</SL>
+          <p style={{ fontSize:12, color:C.ink, lineHeight:1.65, margin:0 }}>
+            This pitch bible was generated by KNOWN from Cornelia Rowe's podcast transcript. The character psychology, the narrative engine identification, the episode structure, and the adaptation format recommendation were all produced by the system — not written by a development executive. The human layer — your team's creative judgment, buyer relationships, and production decisions — is the front end. KNOWN is the back end. Applied to your catalog, this workflow can identify and begin developing your strongest IP candidates in a fraction of the time it currently takes.
+          </p>
+        </Card>
+      </div>}
+    </div>}
+
+    {/* CATALOG SCAN */}
+    {show.status==="scan" && <div>
+      <Card style={{ background:C.ink, border:`0.5px solid ${C.ink}`, marginBottom:14 }}>
+        <SL color="rgba(255,255,255,0.4)">Simulated Catalog Scan — iHeart Portfolio</SL>
+        <p style={{ fontSize:12, color:"rgba(255,255,255,0.82)", lineHeight:1.7, margin:0 }}>
+          This is a simulation of what KNOWN's catalog scan produces: every show scored against the six IP criteria, ranked by adaptation potential, with a format recommendation and a plain-English rationale. In the pilot, KNOWN would run this scan on 3–5 shows your team selects. The output gives your development team a character-intelligence foundation before they commit resources to any show.
+        </p>
+      </Card>
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {show.scanResults.map((r,i)=>(
+          <Card key={i} style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+            <div style={{ flexShrink:0, textAlign:"center" }}>
+              <ScoreCircle score={r.score}
+                color={r.score>=85?C.green:r.score>=75?C.gold:C.accent} size={52}/>
+              <div style={{ fontSize:8, fontFamily:"monospace", color:C.ink3, marginTop:3 }}>IP SCORE</div>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, flexWrap:"wrap" }}>
+                <span style={{ fontWeight:700, fontSize:14, color:C.ink }}>{r.title}</span>
+                <Tag color={r.score>=85?C.green:r.score>=75?C.gold:C.accent}
+                  bg={r.score>=85?C.greenL:r.score>=75?C.goldL:C.accentL}>
+                  {r.score>=85?"Adapt Now":r.score>=75?"Develop First":"Evaluate Further"}
+                </Tag>
+              </div>
+              <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                <Tag color={C.blue} bg={C.blueL}>{r.format}</Tag>
+                <Tag>{r.genre}</Tag>
+              </div>
+              <p style={{ fontSize:11, color:C.ink2, lineHeight:1.55, margin:0 }}>{r.reason}</p>
+            </div>
+          </Card>
+        ))}
+      </div>
+      <Card style={{ marginTop:12, borderLeft:`3px solid ${C.accent}`, background:C.accentL }}>
+        <SL color={C.accent}>Pilot Application</SL>
+        <p style={{ fontSize:12, color:C.ink, lineHeight:1.65, margin:0 }}>
+          In the 12-week pilot, KNOWN would run a catalog scan on 3–5 shows selected by your development team. Each show receives a full IP score, a character intelligence map, and a pitch bible draft. Your team reviews, selects, and develops — with the psychological foundation already built. The scan takes days, not months.
+        </p>
+      </Card>
+    </div>}
+  </div>;
+}
+
+// ─── CHEMISTRY LAB ────────────────────────────────────────────────────────────
+function ChemistryLab() {
+  const pairs = [
+    { show:"Culturistas", h1:{name:"Matt Rogers",dom:"heart"}, h2:{name:"Bowen Yang",dom:"head"},
+      score:88, type:"Complementary Tension",
+      verdict:"Heart + Head creates productive polarity. Dominant intelligences different enough for genuine exchange, similar enough in tertiary (both Body-weak) to share a consistent blind spot. The format's IDTSH segment is the structural solution — but it needs repositioning to maximize its impact." },
+    { show:"Health Stuff", h1:{name:"Hari Kondabolu",dom:"body"}, h2:{name:"Dr. Priyanka Wali",dom:"head"},
+      score:42, type:"Blocked Tension",
+      verdict:"Body + Head should create excellent friction. The embodied comedian and the analytical expert are natural foils. Format is suppressing Hari's Body instinct and preventing Dr. Wali's Heart from activating. Both hosts are operating in their non-dominant register. Format redesign required, not host replacement." },
+    { show:"Simulated: Jordan + Head Co-Host", h1:{name:"Jordan Vela",dom:"heart"}, h2:{name:"TBD",dom:"head"},
+      score:76, type:"Strong Pairing Potential",
+      verdict:"Heart + Head in a finance context replicates the Culturistas polarity. Personal emotional stakes (Heart) + intellectual rigor (Head) = the first-gen finance show this lane is missing. This pairing would produce the same chemistry dynamic as Culturistas applied to an underserved audience." },
+  ];
+  return <div>
+    <div style={{ marginBottom:20 }}>
+      <h2 style={{ fontSize:20, fontWeight:700, color:C.ink, margin:"0 0 4px" }}>Chemistry Lab</h2>
+      <p style={{ fontSize:12, color:C.ink3, margin:0 }}>Host intelligence pairing analysis. What creates productive tension — and what blocks it.</p>
+    </div>
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      {pairs.map((pair,i)=>{
+        const cc=pair.score>=70?C.green:pair.score>=50?C.gold:C.accent;
+        const bc=pair.score>=70?C.greenL:pair.score>=50?C.goldL:C.accentL;
+        return <Card key={i}>
+          <div style={{ display:"flex", gap:18, alignItems:"flex-start" }}>
+            <div style={{ flexShrink:0, textAlign:"center" }}>
+              <ScoreCircle score={pair.score} color={cc} size={62}/>
+              <div style={{ fontSize:8, color:C.ink3, fontFamily:"monospace", marginTop:3 }}>CHEMISTRY</div>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, flexWrap:"wrap" }}>
+                <span style={{ fontWeight:700, fontSize:14, color:C.ink }}>{pair.show}</span>
+                <Tag color={cc} bg={bc}>{pair.type}</Tag>
+              </div>
+              <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                {[pair.h1,pair.h2].map((h,j)=>(
+                  <div key={j} style={{ display:"flex", alignItems:"center", gap:6, background:C.cream2, padding:"4px 10px", borderRadius:4 }}>
+                    <span style={{ fontSize:11, fontWeight:600, color:C.ink }}>{h.name}</span>
+                    <IB type={h.dom}/>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize:11, color:C.ink2, lineHeight:1.6, margin:0 }}>{pair.verdict}</p>
+            </div>
+          </div>
+        </Card>;
+      })}
+    </div>
+    <Card style={{ marginTop:12, background:C.ink, border:`0.5px solid ${C.ink}` }}>
+      <SL color="rgba(255,255,255,0.4)">System Principle</SL>
+      <p style={{ fontSize:12, color:"rgba(255,255,255,0.82)", lineHeight:1.7, margin:0 }}>
+        Three-dimensional hosts activate all three intelligences — dominant, secondary, and tertiary. Chemistry works when two hosts' dominant intelligences are different enough to create genuine exchange. The blind spot they share defines what the format must supply structurally. The most clippable moments in any show are tertiary intelligence activations — when hosts operate outside their comfort register.
+      </p>
+    </Card>
+  </div>;
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [view, setView] = React.useState("diagnostic");
+  const [activeShow, setActiveShow] = React.useState("culturistas");
+
+  return <div style={{ fontFamily:"Georgia, serif", background:C.cream, minHeight:"100vh" }}>
+    {/* Header */}
+    <div style={{ background:C.ink, padding:"0 24px", display:"flex", alignItems:"center",
+      justifyContent:"space-between", height:50, position:"sticky", top:0, zIndex:100 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <div style={{ fontFamily:"Georgia, serif", fontSize:17, color:C.white, letterSpacing:"0.04em" }}>
+          K<span style={{ color:C.accent, fontStyle:"italic" }}>N</span>OWN
+        </div>
+        <div style={{ fontFamily:"monospace", fontSize:8, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", textTransform:"uppercase" }}>
+          Podcast Intelligence Platform
+        </div>
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ fontFamily:"monospace", fontSize:8, color:"rgba(255,255,255,0.3)", letterSpacing:"0.1em", textTransform:"uppercase" }}>iHeart — Pilot</div>
+        <div style={{ background:C.accent, color:C.white, fontSize:8, fontWeight:700, padding:"2px 8px", borderRadius:3, textTransform:"uppercase" }}>Beta</div>
+      </div>
+    </div>
+
+    <div style={{ display:"flex" }}>
+      {/* Sidebar */}
+      <div style={{ width:200, background:C.white, borderRight:`0.5px solid ${C.border}`,
+        padding:"18px 0", flexShrink:0, minHeight:"calc(100vh - 50px)", position:"sticky", top:50, overflowY:"auto" }}>
+        <div style={{ padding:"0 14px", marginBottom:18 }}>
+          <div style={{ fontFamily:"monospace", fontSize:8, color:C.ink3, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:6 }}>Modules</div>
+          {[{id:"diagnostic",label:"Show Diagnostic"},{id:"talent",label:"Talent Evaluator"},{id:"chemistry",label:"Chemistry Lab"},{id:"ip",label:"IP Expansion · Podcast to Film/TV"}].map(v=>(
+            <button key={v.id} onClick={()=>setView(v.id)} style={{
+              width:"100%", textAlign:"left", padding:"8px 10px", borderRadius:4,
+              background:view===v.id?C.ink:"transparent",
+              color:view===v.id?C.white:C.ink2,
+              border:"none", cursor:"pointer", fontSize:12,
+              fontFamily:"Georgia, serif", marginBottom:2,
+              fontWeight:view===v.id?700:400,
+            }}>{v.label}</button>
+          ))}
+        </div>
+        {view==="diagnostic" && (
+          <div style={{ padding:"0 14px" }}>
+            <div style={{ fontFamily:"monospace", fontSize:8, color:C.ink3, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:8 }}>Shows</div>
+            {[{id:"culturistas",label:"Culturistas",status:"performing"},{id:"health",label:"Health Stuff",status:"underperforming"}].map(s=>(
+              <button key={s.id} onClick={()=>setActiveShow(s.id)} style={{
+                width:"100%", textAlign:"left", padding:"10px 10px", borderRadius:4,
+                background:activeShow===s.id?C.cream2:"transparent",
+                border:activeShow===s.id?`0.5px solid ${C.border}`:"0.5px solid transparent",
+                cursor:"pointer", marginBottom:4, display:"block"
+              }}>
+                <div style={{ fontSize:11, fontWeight:600, color:C.ink, marginBottom:4 }}>{s.label}</div>
+                <Tag color={s.status==="underperforming"?C.accent:C.green} bg={s.status==="underperforming"?C.accentL:C.greenL}>
+                  {s.status}
+                </Tag>
+              </button>
+            ))}
+          </div>
+        )}
+        {view==="diagnostic" && activeShow==="culturistas" && (
+          <div style={{ padding:"12px 14px 0", borderTop:`0.5px solid ${C.border}`, marginTop:12 }}>
+            <div style={{ fontFamily:"monospace", fontSize:8, color:C.ink3, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:6 }}>Tabs Available</div>
+            {["Hosts","Chemistry","Segments","Marketing","Creative","Template"].map((t,i)=>(
+              <div key={i} style={{ fontSize:10, color:C.ink3, padding:"3px 0", borderBottom:`0.5px solid ${C.border}` }}>{t}</div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Main */}
+      <div style={{ flex:1, padding:24, paddingBottom:60, overflowY:"auto" }}>
+        {view==="diagnostic" && (
+          <ShowDiagnostic
+            data={activeShow==="culturistas"?CULTURISTAS_DATA:HEALTH_DATA}
+            isPerforming={activeShow==="culturistas"}
+          />
+        )}
+        {view==="talent" && <TalentEvaluator/>}
+        {view==="chemistry" && <ChemistryLab/>}
+        {view==="ip" && <IPExpansion/>}
+      </div>
+    </div>
+
+    {/* Footer */}
+    <div style={{ position:"fixed", bottom:0, left:200, right:0, background:C.white,
+      borderTop:`0.5px solid ${C.border}`, padding:"8px 24px",
+      display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:50 }}>
+      <div style={{ fontFamily:"monospace", fontSize:9, color:C.ink3 }}>
+        AI on the back end &nbsp;·&nbsp; Human on the front end
+      </div>
+      <div style={{ display:"flex", gap:14 }}>
+        {[["HEAD",HEAD_C],["HEART",HEART_C],["BODY",BODY_C]].map(([label,color])=>(
+          <div key={label} style={{ display:"flex", alignItems:"center", gap:4 }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:color }}/>
+            <span style={{ fontSize:9, fontFamily:"monospace", color:C.ink3 }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
